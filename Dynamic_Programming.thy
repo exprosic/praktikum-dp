@@ -8,15 +8,13 @@ type_synonym ('param, 'result) dpfun = "'param \<Rightarrow> ('param, 'result) d
   
 fun return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") where
   "\<langle>x\<rangle> = (\<lambda>M. (x, M))"
-fun apply_function :: "('a \<Rightarrow> 'b) \<Rightarrow> 'a \<Rightarrow> 'b" (infixr "$" 51) where
-  "f $ x = f x"
-definition get :: "('s, 's) state" where
-  "get \<equiv> \<lambda>M. (M, M)"
-definition put :: "'s \<Rightarrow> ('s, unit) state" where
-  "put s \<equiv> \<lambda>M. ((), s)"
+fun get :: "('s, 's) state" where
+  "get M = (M, M)"
+fun put :: "'s \<Rightarrow> ('s, unit) state" where
+  "put M _ = ((), M)"
 
-definition checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('param, 'result) dpstate" where
-  "checkmem params calcVal \<equiv> exec {
+fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('param, 'result) dpstate" where
+  "checkmem params calcVal = exec {
     M \<leftarrow> get;
     case M params of
       Some v => \<langle>v\<rangle> |
@@ -28,67 +26,11 @@ definition checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightar
       }
     }"
   
-lemma [elim!]:
-  obtains v where "snd (checkmem params calcVal M) params = Some v"
-  oops
-
-(*
-fun sequence :: "('param, 'result) state list \<Rightarrow> ('param, 'result list) state" where
-  "sequence [] = return []" |
-  "sequence (x#xs) = exec {
-    v \<leftarrow> x;
-    vs \<leftarrow> sequence xs;
-    return$ v#vs
-  }"
-
-fun fold\<^sub>S' :: "('a \<Rightarrow> 'b \<Rightarrow> 'b) \<Rightarrow> ('M, 'a) state list \<Rightarrow> ('M, 'b) state \<Rightarrow> ('M, 'b) state" where
-  "fold\<^sub>S' f [] init = init" |
-  "fold\<^sub>S' f (x#xs) init = exec {
-    v \<leftarrow> init;
-    v' \<leftarrow> x;
-    fold\<^sub>S' f xs (return$ f v' v)
-  }"
-
-definition fold\<^sub>S:: "('a \<Rightarrow> 'b \<Rightarrow> 'b) \<Rightarrow> ('param, 'a) state list \<Rightarrow> ('param, 'b) state \<Rightarrow> ('param, 'b) state" where
-  "fold\<^sub>S f xs init \<equiv> exec {
-    initv \<leftarrow> init;
-    vs \<leftarrow> sequence xs;
-    return$ fold f vs initv
-  }"
-
-lemma "fold\<^sub>S = fold\<^sub>S'"
-  oops
-*)
-(*
-definition liftl :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> 'b \<Rightarrow> ('M,'c) state" where
-  "liftl f s v \<equiv> exec {v0 \<leftarrow> s; return$ f v0 v}"
-definition liftr :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'a \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
-  "liftr f v s \<equiv> exec {v0 \<leftarrow> s; return$ f v v0}"
-abbreviation plus_state_val (infixl "\<^sub>s+" 65) where "op \<^sub>s+ \<equiv> liftl (op +)"
-abbreviation plus_val_state (infixl "+\<^sub>s" 65) where "op +\<^sub>s \<equiv> liftr (op +)"
-*)
 definition lift_binary :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
-  "lift_binary f s0 s1 \<equiv> exec {v0 \<leftarrow> s0; v1 \<leftarrow> s1; return$ f v0 v1}"
+  "lift_binary f s0 s1 \<equiv> exec {v0 \<leftarrow> s0; v1 \<leftarrow> s1; \<langle>f v0 v1\<rangle>}"
 definition plus_state (infixl "+\<^sub>s" 65) where "op +\<^sub>s \<equiv> lift_binary (op +)"
 definition min\<^sub>s where "min\<^sub>s \<equiv> lift_binary min"
 definition max\<^sub>s where "max\<^sub>s \<equiv> lift_binary max"
-
-context
-  fixes W :: "nat \<Rightarrow> nat \<Rightarrow> int"
-    and n :: nat
-begin
-
-text \<open>Could also be primrec\<close>
-text \<open>Dimensionality as parameter\<close>
-
-fun bf :: "(nat\<times>nat) \<Rightarrow> int" where
-  "bf (0, j) = W 0 j" |
-  "bf (Suc k, j) = fold min [bf (k, i) + W i j. i\<leftarrow>[0..<n]] (bf (k, j))"
-
-fun bf' :: "(nat\<times>nat, int) dpfun" where
-  "bf' params = checkmem params (case params of
-    (0, j) => \<langle>W 0 j\<rangle> |
-    (Suc k, j) => fold min\<^sub>s [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j)))"
 
 definition pcorrect :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param \<rightharpoonup> 'result) \<Rightarrow> bool" where
   "pcorrect f M \<equiv> \<forall>param\<in>dom M. M param = Some (f param)"
@@ -115,6 +57,80 @@ lemma map_le_id_upR: "pcorrect f M \<Longrightarrow> f param = v \<Longrightarro
 
 lemma fib'_correct_aux: "pcorrect bf M \<Longrightarrow> M \<subseteq>\<^sub>m snd (bf' param M)"
   apply (induction arbitrary: M rule: bf.induct)
+  oops
+    
+(* Fib *)
+
+fun fib :: "nat \<Rightarrow> nat" where
+"fib 0 = 0" |
+"fib (Suc 0) = 1" |
+"fib (Suc(Suc n)) = fib(Suc n) + fib n"
+
+fun fib' :: "(nat, nat) dpfun" where
+  "fib' param = checkmem param (case param of
+    0 => \<langle>0\<rangle> |
+    Suc 0 => \<langle>1\<rangle> |
+    Suc (Suc n) => fib' (Suc n) +\<^sub>s fib' n
+  )"
+  
+lemma "fst (fib' 0 empty) = fib 0"
+  by (auto)
+
+lemma "pcorrect fib M \<Longrightarrow> fst (fib' 0 M) = fib 0"
+  unfolding pcorrect_def
+  apply (cases "M 0")
+   apply (auto simp: dom_def)
+  done
+
+lemma "pcorrect fib M \<Longrightarrow> fst (fib' 1 M) = fib 1"
+  apply (cases "M 1")
+   apply (auto simp: dom_def pcorrect_def)
+  done
+
+lemma "pcorrect fib M \<Longrightarrow> pcorrect fib (snd (fib' n M))"
+  apply (induction n arbitrary: M rule: fib.induct)
+    apply (auto simp: dom_def pcorrect_def split: option.splits)[]
+   apply (auto simp: dom_def pcorrect_def split: option.splits)[]
+  oops
+
+lemma "pcorrect fib M \<Longrightarrow> fst (fib' n M) = fib n \<and> pcorrect fib (snd (fib' n M))"
+proof (induction n arbitrary: M rule: fib.induct)
+  case 1
+  then show ?case by (auto simp: dom_def pcorrect_def split: option.splits)
+next
+  case 2
+  then show ?case by (auto simp: dom_def pcorrect_def split: option.splits)
+next
+  case (3 n)
+  obtain v0 M0 where l00:"fib' (Suc n) M = (v0, M0)" by fastforce
+  with 3 have l01:"v0 = fib (Suc n) \<and> pcorrect fib M0" by fastforce
+  obtain v1 M1 where l10:"fib' n M0 = (v1, M1)" by fastforce
+  with 3 l01 have l11:"v1 = fib n \<and> pcorrect fib M1" by fastforce
+  from 3 l00 l01 l10 l11 have "fst ((fib' (Suc n) +\<^sub>s fib' n) M) = v0+v1"
+    unfolding plus_state_def lift_binary_def by auto
+      with l00 l01 l10 l11 show ?case sorry
+qed
+
+
+term 0 (*
+(* Bellman Ford *)
+context
+  fixes W :: "nat \<Rightarrow> nat \<Rightarrow> int"
+    and n :: nat
+begin
+
+text \<open>Could also be primrec\<close>
+text \<open>Dimensionality as parameter\<close>
+
+fun bf :: "(nat\<times>nat) \<Rightarrow> int" where
+  "bf (0, j) = W 0 j" |
+  "bf (Suc k, j) = fold min [bf (k, i) + W i j. i\<leftarrow>[0..<n]] (bf (k, j))"
+
+fun bf' :: "(nat\<times>nat, int) dpfun" where
+  "bf' params = checkmem params (case params of
+    (0, j) => \<langle>W 0 j\<rangle> |
+    (Suc k, j) => fold min\<^sub>s [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j)))"
+
     
 
 end

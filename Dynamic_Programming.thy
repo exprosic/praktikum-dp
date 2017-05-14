@@ -13,17 +13,21 @@ fun get :: "('s, 's) state" where
 fun put :: "'s \<Rightarrow> ('s, unit) state" where
   "put M _ = ((), M)"
 
+  
+fun update :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('param, 'result) dpstate" where
+  "update params calcVal = exec {
+    v \<leftarrow> calcVal;
+    M' \<leftarrow> get;
+    _ \<leftarrow> put (M'(params\<mapsto>v));
+    \<langle>v\<rangle>
+  }"
+
 fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('param, 'result) dpstate" where
   "checkmem params calcVal = exec {
     M \<leftarrow> get;
     case M params of
       Some v => \<langle>v\<rangle> |
-      None => exec {
-        v \<leftarrow> calcVal;
-        M' \<leftarrow> get;
-        _ \<leftarrow> put (M'(params\<mapsto>v));
-        \<langle>v\<rangle>
-      }
+      None => update params calcVal
     }"
   
 definition lift_binary :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
@@ -37,11 +41,66 @@ definition consistentM :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param 
   
 definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param, 'result) dpfun \<Rightarrow> bool" where
   "consistentDF f d \<equiv> \<forall>M. consistentM f M \<longrightarrow> (\<forall>param. let (v,M')=d param M in v=f param \<and> consistentM f M')"
-  
-lemma "consistentDF s0 \<Longrightarrow> consistentDF s1 \<Longrightarrow>"    
 
-    
-term 0 (*    
+definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'result \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> bool" where
+  "consistentS f v s \<equiv> \<forall>M. consistentM f M \<longrightarrow> fst (s M) = v \<and> consistentM f (snd (s M))"
+
+lemma consistent_binary:
+  assumes c0:"consistentS f v0 s0" and c1:"consistentS f v1 s1"
+    shows "consistentS f (g v0 v1) (lift_binary g s0 s1)" (is ?case)
+proof -
+  {
+    fix M assume m0: "consistentM f M"
+    let ?gvv="g v0 v1" and ?gss="lift_binary g s0 s1"
+      
+    obtain v0' M0 where p0: "s0 M = (v0',M0)" by fastforce
+    with c0 m0 have "v0=v0'" and m1: "consistentM f M0" unfolding consistentS_def by fastforce+
+    moreover
+    obtain v1' M1 where p1: "s1 M0 = (v1',M1)" by fastforce
+    with c1 m1 have "v1=v1'" and m2: "consistentM f M1" unfolding consistentS_def by fastforce+
+    moreover
+    from p0 p1 have pg: "?gss M = (g v0' v1', M1)" unfolding lift_binary_def by simp
+    ultimately
+    have "fst (?gss M) = ?gvv" "consistentM f (snd (?gss M))" by auto
+  }
+  thus ?case unfolding consistentS_def by simp
+qed
+  
+corollary consistent_plus:
+  "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (v0+v1) (s0+\<^sub>ss1)"
+  unfolding plus_state_def using consistent_binary[where g="op +"] .
+
+lemma consistentM_upd: "consistentM f M \<Longrightarrow> consistentM f (M(param\<mapsto>f param))"
+  unfolding consistentM_def by auto
+
+lemma consistentS_update: 
+  assumes prem: "consistentS f (f param) s"
+  shows "consistentS f (f param) (update param s)" (is ?thesis)
+proof -
+  {
+    fix M assume cm: "consistentM f M"
+    have "fst (update param s M) = f param \<and> consistentM f (snd (update param s M))"
+      using prem[unfolded consistentS_def, THEN spec, THEN mp, OF cm]
+      by (auto simp: consistentM_upd split: prod.splits)
+  }
+  thus ?thesis unfolding consistentS_def by auto
+qed
+
+lemma consistent_checkmem:
+  assumes prem: "consistentS f (f param) s"
+  shows "consistentS f (f param) (checkmem param s)" (is ?case)
+proof -
+  {
+    fix M assume *: "consistentM f M"
+    (* "fst (checkmem param s M) = f param \<and> consistentM f (snd (checkmem param s M))"*)
+    have "fst (checkmem param s M) = f param \<and> consistentM f (snd (checkmem param s M))"
+      apply (cases "param \<in> dom M")
+        using * apply (auto simp: consistentM_def)[]
+        using consistentS_update[OF prem] * by (auto simp: consistentS_def)
+  }
+  thus ?case unfolding consistentS_def by simp
+qed
+
 (* Fib *)
 
 fun fib :: "nat \<Rightarrow> nat" where
@@ -55,20 +114,15 @@ fun fib' :: "(nat, nat) dpfun" where
     Suc 0 => \<langle>1\<rangle> |
     Suc (Suc n) => fib' (Suc n) +\<^sub>s fib' n
   )"
+
+lemma fib'_simps:
+  "fib' 0 = checkmem 0 \<langle>0\<rangle>"
+  "fib' 1 = checkmem 1 \<langle>1\<rangle>"
+  "fib' (Suc (Suc n)) = checkmem (Suc (Suc n)) (fib' (Suc n) +\<^sub>s fib' n)"
+  by auto
   
 lemma "fst (fib' 0 empty) = fib 0"
   by (auto)
-
-lemma "consistentM fib M \<Longrightarrow> fst (fib' 0 M) = fib 0"
-  unfolding consistentM_def
-  apply (cases "M 0")
-   apply (auto simp: dom_def)
-  done
-
-lemma "consistentM fib M \<Longrightarrow> fst (fib' 1 M) = fib 1"
-  apply (cases "M 1")
-   apply (auto simp: dom_def consistentM_def)
-  done
 
 lemma "consistentM fib M \<Longrightarrow> consistentM fib (snd (fib' n M))"
   apply (induction n arbitrary: M rule: fib.induct)
@@ -76,24 +130,24 @@ lemma "consistentM fib M \<Longrightarrow> consistentM fib (snd (fib' n M))"
    apply (auto simp: dom_def consistentM_def split: option.splits)[]
   oops
 
-lemma "consistentM fib M \<Longrightarrow> fst (fib' n M) = fib n \<and> consistentM fib (snd (fib' n M))"
-proof (induction n arbitrary: M rule: fib.induct)
-  case 1
-  then show ?case by (auto simp: dom_def consistentM_def split: option.splits)
-next
-  case 2
-  then show ?case by (auto simp: dom_def consistentM_def split: option.splits)
-next
-  case (3 n)
-  obtain v0 M0 where l00:"fib' (Suc n) M = (v0, M0)" by fastforce
-  with 3 have l01:"v0 = fib (Suc n) \<and> consistentM fib M0" by fastforce
-  obtain v1 M1 where l10:"fib' n M0 = (v1, M1)" by fastforce
-  with 3 l01 have l11:"v1 = fib n \<and> consistentM fib M1" by fastforce
-  from 3 l00 l01 l10 l11 have "fst ((fib' (Suc n) +\<^sub>s fib' n) M) = v0+v1"
-    unfolding plus_state_def lift_binary_def by auto
-      with l00 l01 l10 l11 show ?case sorry
-qed
-
+lemma "consistentS fib (fib n) (fib' n)"
+  apply (induction n rule: fib.induct)
+    apply (auto simp: consistentS_def dom_def consistentM_def split: option.splits)[2]
+    (*
+    consistent_plus[of fib "fib (Suc n)" "fib' (Suc n)" "fib n" "fib' n",
+      THEN consistent_checkmem[of fib "Suc (Suc n)" "fib' (Suc n) +\<^sub>s fib' n", unfolded fib.simps(3)]]
+*)
+proof -
+    fix n
+    show "consistentS fib (fib (Suc n)) (fib' (Suc n)) \<Longrightarrow>
+          consistentS fib (fib n) (fib' n) \<Longrightarrow>
+          consistentS fib (fib (Suc (Suc n))) (fib' (Suc (Suc n)))"
+      apply (simp only: fib'_simps(3))
+      apply (rule consistent_checkmem)
+      apply (simp only: fib.simps(3))
+      apply (rule consistent_plus)
+      .
+  qed
 
 term 0 (*
 (* Bellman Ford *)

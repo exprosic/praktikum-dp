@@ -123,12 +123,6 @@ lemma fib'_simps:
 lemma "fst (fib' 0 empty) = fib 0"
   by (auto)
 
-lemma "consistentM fib M \<Longrightarrow> consistentM fib (snd (fib' n M))"
-  apply (induction n arbitrary: M rule: fib.induct)
-    apply (auto simp: dom_def consistentM_def split: option.splits)[]
-   apply (auto simp: dom_def consistentM_def split: option.splits)[]
-  oops
-
 lemma "consistentDF fib fib'"
   unfolding consistentDF_def
     apply rule

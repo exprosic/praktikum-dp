@@ -39,11 +39,11 @@ definition max\<^sub>s where "max\<^sub>s \<equiv> lift_binary max"
 definition consistentM :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param \<rightharpoonup> 'result) \<Rightarrow> bool" where
   "consistentM f M \<equiv> \<forall>param\<in>dom M. M param = Some (f param)"
   
-definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param, 'result) dpfun \<Rightarrow> bool" where
-  "consistentDF f d \<equiv> \<forall>M. consistentM f M \<longrightarrow> (\<forall>param. let (v,M')=d param M in v=f param \<and> consistentM f M')"
-
 definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'result \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> bool" where
   "consistentS f v s \<equiv> \<forall>M. consistentM f M \<longrightarrow> fst (s M) = v \<and> consistentM f (snd (s M))"
+
+definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param, 'result) dpfun \<Rightarrow> bool" where
+  "consistentDF f d \<equiv> \<forall>param. consistentS f (f param) (d param)"
 
 lemma consistent_binary:
   assumes c0:"consistentS f v0 s0" and c1:"consistentS f v1 s1"
@@ -92,7 +92,6 @@ lemma consistent_checkmem:
 proof -
   {
     fix M assume *: "consistentM f M"
-    (* "fst (checkmem param s M) = f param \<and> consistentM f (snd (checkmem param s M))"*)
     have "fst (checkmem param s M) = f param \<and> consistentM f (snd (checkmem param s M))"
       apply (cases "param \<in> dom M")
         using * apply (auto simp: consistentM_def)[]
@@ -130,13 +129,11 @@ lemma "consistentM fib M \<Longrightarrow> consistentM fib (snd (fib' n M))"
    apply (auto simp: dom_def consistentM_def split: option.splits)[]
   oops
 
-lemma "consistentS fib (fib n) (fib' n)"
-  apply (induction n rule: fib.induct)
+lemma "consistentDF fib fib'"
+  unfolding consistentDF_def
+    apply rule
+  apply (induct_tac param rule: fib.induct)
     apply (auto simp: consistentS_def dom_def consistentM_def split: option.splits)[2]
-    (*
-    consistent_plus[of fib "fib (Suc n)" "fib' (Suc n)" "fib n" "fib' n",
-      THEN consistent_checkmem[of fib "Suc (Suc n)" "fib' (Suc n) +\<^sub>s fib' n", unfolded fib.simps(3)]]
-*)
 proof -
     fix n
     show "consistentS fib (fib (Suc n)) (fib' (Suc n)) \<Longrightarrow>
@@ -149,8 +146,8 @@ proof -
       .
   qed
 
-term 0 (*
 (* Bellman Ford *)
+
 context
   fixes W :: "nat \<Rightarrow> nat \<Rightarrow> int"
     and n :: nat
@@ -171,7 +168,7 @@ fun bf' :: "(nat\<times>nat, int) dpfun" where
     
 
 end
-term 0 (*
+
 text \<open>Not primrec\<close>
 text \<open>Dimensionality given by i, j\<close>
 fun ed :: "nat \<Rightarrow> nat \<Rightarrow> nat" where

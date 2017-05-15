@@ -66,9 +66,11 @@ proof -
   thus ?case unfolding consistentS_def by simp
 qed
 
-corollary consistent_plus:
-  "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (v0+v1) (s0+\<^sub>ss1)"
-  unfolding plus_state_def using consistent_binary[where g="op +"] .
+corollary
+  consistent_plus: "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (v0+v1) (s0+\<^sub>ss1)" and
+  consistent_min: "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (min v0 v1) (min\<^sub>s s0 s1)" and
+  consistent_max: "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (max v0 v1) (max\<^sub>s s0 s1)"
+  unfolding plus_state_def min\<^sub>s_def max\<^sub>s_def by (fact consistent_binary)+
 
 lemma consistentM_upd: "consistentM f M \<Longrightarrow> consistentM f (M(param\<mapsto>f param))"
   unfolding consistentM_def by auto
@@ -100,29 +102,6 @@ proof -
   thus ?case unfolding consistentS_def by simp
 qed
 
-(* Fib *)
-
-fun fib :: "nat \<Rightarrow> nat" where
-"fib 0 = 0" |
-"fib (Suc 0) = 1" |
-"fib (Suc(Suc n)) = fib(Suc n) + fib n"
-
-fun fib' :: "(nat, nat) dpfun" where
-  "fib' param = checkmem param (case param of
-    0 => \<langle>0\<rangle> |
-    Suc 0 => \<langle>1\<rangle> |
-    Suc (Suc n) => fib' (Suc n) +\<^sub>s fib' n
-  )"
-
-lemma fib'_simps:
-  "fib' 0 = checkmem 0 \<langle>0\<rangle>"
-  "fib' (Suc 0) = checkmem (Suc 0) \<langle>1\<rangle>"
-  "fib' (Suc (Suc n)) = checkmem (Suc (Suc n)) (fib' (Suc n) +\<^sub>s fib' n)"
-  by auto
-
-lemma "fst (fib' 0 empty) = fib 0"
-  by (auto)
-
 lemma consistent_checkmem':
   assumes "consistentS f v s" "f param = v"
   shows "consistentS f v (checkmem param s)" (is ?case)
@@ -132,21 +111,44 @@ lemma consistentS_return:
   "consistentS f v \<langle>v\<rangle>"
   unfolding consistentS_def by simp
 
+lemma consistent_fold:
+  "\<lbrakk>consistentS dp init init';
+    \<And>i. i\<in>set idx \<Longrightarrow> consistentS dp (ls i) (ls' i);
+    f' = lift_binary f\<rbrakk> \<Longrightarrow>
+   consistentS dp (fold f (map ls idx) init) (fold f' (map ls' idx) init')"
+  by (induction idx arbitrary: init init') (auto simp: consistent_binary)
+
+(* Fib *)
+
+fun fib :: "nat \<Rightarrow> nat" where
+"fib 0 = 0" |
+"fib (Suc 0) = 1" |
+"fib (Suc(Suc n)) = fib(Suc n) + fib n"
+
+fun fib' fib'' :: "(nat, nat) dpfun" where
+  "fib' param = checkmem param (fib'' param)" |
+  "fib'' 0 = \<langle>0\<rangle>" |
+  "fib'' (Suc 0) = \<langle>1\<rangle>" |
+  "fib'' (Suc (Suc n)) = fib' (Suc n) +\<^sub>s fib' n"
+
 lemma consistent_fib_step:
   "consistentS fib (fib (Suc n)) (fib' (Suc n)) \<Longrightarrow>
   consistentS fib (fib n) (fib' n) \<Longrightarrow>
   consistentS fib (fib (Suc (Suc n))) (fib' (Suc (Suc n)))"
-  apply (simp only: fib'_simps fib.simps)
-  by (intro consistent_checkmem' consistent_plus; simp only: fib.simps)
+  apply (simp only: fib'.simps fib''.simps fib.simps)
+  apply (intro consistent_checkmem')
+   apply (intro consistent_plus)
+    apply (simp_all only: fib.simps)
+  done
 
 lemma fib_case_0:
   "consistentS fib (fib 0) (fib' 0)"
-  apply (simp only: fib'_simps fib.simps)
+  apply (simp only: fib'.simps fib''.simps fib.simps)
   by (intro consistent_checkmem' consistentS_return; simp only: fib.simps)
 
 lemma fib_case_Suc_0:
   "consistentS fib (fib (Suc 0)) (fib' (Suc 0))"
-  apply (simp only: fib'_simps fib.simps)
+  apply (simp only: fib'.simps fib''.simps fib.simps)
   by (intro consistent_checkmem' consistentS_return; simp only: fib.simps)
 
 lemma "consistentDF fib fib'"
@@ -169,30 +171,50 @@ fun bf :: "(nat\<times>nat) \<Rightarrow> int" where
   "bf (0, j) = W 0 j" |
   "bf (Suc k, j) = fold min [bf (k, i) + W i j. i\<leftarrow>[0..<n]] (bf (k, j))"
 
-fun bf' :: "(nat\<times>nat, int) dpfun" where
-  "bf' params = checkmem params (case params of
-    (0, j) => \<langle>W 0 j\<rangle> |
-    (Suc k, j) => fold min\<^sub>s [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j)))"
-
-
+fun bf' bf'' :: "(nat\<times>nat, int) dpfun" where
+  "bf' params = checkmem params (bf'' params)" |
+  "bf'' (0, j) = \<langle>W 0 j\<rangle>" |
+  "bf'' (Suc k, j) = fold min\<^sub>s [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j))"
+    
+lemma "consistentDF bf bf'"
+  apply (unfold consistentDF_def, rule allI, induct_tac rule: bf.induct)
+   apply (simp only: bf.simps bf'.simps bf''.simps)
+   apply (rule consistent_checkmem')
+    apply (rule consistentS_return)
+   apply (simp only: bf.simps)
+    
+  apply (simp only: bf.simps bf'.simps bf''.simps)
+  apply (rule consistent_checkmem')
+   apply (rule consistent_fold)
+     apply assumption
+    apply (rule consistent_plus)
+     apply assumption
+    apply (rule consistentS_return)
+   apply (simp only: min\<^sub>s_def)
+  apply (simp only: bf.simps)
+  done
 
 end
 
 text \<open>Not primrec\<close>
 text \<open>Dimensionality given by i, j\<close>
-fun ed :: "nat \<Rightarrow> nat \<Rightarrow> nat" where
-  "ed 0 0 = 0" |
-  "ed 0 (Suc j) = Suc j" |
-  "ed (Suc i) 0 = Suc i" |
-  "ed (Suc i) (Suc j) = min (ed i j + 2) (min (ed (Suc i) j + 1) (ed i (Suc j) + 1))"
+fun ed :: "(nat\<times>nat) \<Rightarrow> nat" where
+  "ed (0, 0) = 0" |
+  "ed (0, Suc j) = Suc j" |
+  "ed (Suc i, 0) = Suc i" |
+  "ed (Suc i, Suc j) = min (ed (i, j) + 2) (min (ed (Suc i, j) + 1) (ed (i, Suc j) + 1))"
 
-fun ed' :: "(nat\<times>nat, nat) dpfun" where
-  "ed' params = checkmem params (case params of
-    (0, 0) => \<langle>0\<rangle> |
-    (0, Suc j) => \<langle>Suc j\<rangle> |
-    (Suc i, 0) => \<langle>Suc i\<rangle> |
-    (Suc i, Suc j) => min\<^sub>s (ed' (i, j) +\<^sub>s \<langle>2\<rangle>) (min\<^sub>s (ed' (Suc i, j) +\<^sub>s \<langle>1\<rangle>) (ed' (i, Suc j) +\<^sub>s \<langle>1\<rangle>)))"
+fun ed' ed''  :: "(nat\<times>nat, nat) dpfun" where
+  "ed' params = checkmem params (ed'' params)" |
+  "ed'' (0, 0) = \<langle>0\<rangle>" |
+  "ed'' (0, Suc j) = \<langle>Suc j\<rangle>" |
+  "ed'' (Suc i, 0) = \<langle>Suc i\<rangle>" |
+  "ed'' (Suc i, Suc j) = min\<^sub>s (ed' (i, j) +\<^sub>s \<langle>2\<rangle>) (min\<^sub>s (ed' (Suc i, j) +\<^sub>s \<langle>1\<rangle>) (ed' (i, Suc j) +\<^sub>s \<langle>1\<rangle>))"
 thm minus_nat_inst.minus_nat
+
+lemma "consistentDF ed ed'"
+  by (unfold consistentDF_def, rule allI, induct_tac rule: ed.induct)
+     (auto simp only: ed.simps ed'.simps ed''.simps intro!: consistent_checkmem' consistentS_return consistent_min consistent_plus)
 
 term "(a :: nat) - (b :: nat)"
 
@@ -200,29 +222,52 @@ context
   fixes w :: "nat \<Rightarrow> nat"
 begin
 
-fun su :: "nat \<Rightarrow> nat \<Rightarrow> nat" where
-  "su 0 W = (if W < w 0 then 0 else w 0)" |
-  "su (Suc i) W = (if W < w (Suc i)
-    then su i W
-    else max (su i W) (w i + su i (W - w i)))"
+fun su :: "(nat\<times>nat) \<Rightarrow> nat" where
+  "su (0, W) = (if W < w 0 then 0 else w 0)" |
+  "su (Suc i, W) = (if W < w (Suc i)
+    then su (i, W)
+    else max (su (i, W)) (w i + su (i, W - w i)))"
 
-fun su' :: "(nat\<times>nat, nat) dpfun" where
-  "su' params = checkmem params (case params of
-    (0, W) => if W < w 0 then \<langle>0\<rangle> else \<langle>w 0\<rangle> |
-    (Suc i, W) => if W < w (Suc i)
-      then su' (i, W)
-      else max\<^sub>s (su' (i, W)) (\<langle>w i\<rangle> +\<^sub>s su' (i, W - w i)))"
+fun su' su'' :: "(nat\<times>nat, nat) dpfun" where
+  "su' params = checkmem params (su'' params)" |
+  "su'' (0, W) = (if W < w 0 then \<langle>0\<rangle> else \<langle>w 0\<rangle>)" |
+  "su'' (Suc i, W) = (if W < w (Suc i)
+    then su' (i, W)
+    else max\<^sub>s (su' (i, W)) (\<langle>w i\<rangle> +\<^sub>s su' (i, W - w i)))"
+
+lemma consistent_cond:
+  assumes "b \<Longrightarrow> consistentS dp v0 s0" "\<not>b \<Longrightarrow> consistentS dp v1 s1"
+  shows "consistentS dp (if b then v0 else v1) (if b then s0 else s1)"
+  using assms by auto
+
+lemma "consistentDF su su'"
+  apply (unfold consistentDF_def, rule allI, induct_tac rule: su.induct)
+   apply (simp only: su.simps su'.simps su''.simps)
+   apply (rule consistent_checkmem')
+    apply (rule consistent_cond)
+     apply (rule consistentS_return)
+    apply (rule consistentS_return)
+   apply (simp only: su.simps)
+    
+  apply (simp only: su.simps su'.simps su''.simps)
+  apply (rule consistent_checkmem')
+   apply (rule consistent_cond)
+    apply assumption
+   apply (rule consistent_max)
+    apply assumption
+   apply (rule consistent_plus)
+    apply (rule consistentS_return)
+   apply assumption
+  apply (simp only: su.simps)
+  done
 end
 
 context
   fixes v :: "nat \<Rightarrow> nat"
+    and p :: "nat \<Rightarrow> nat"
+  assumes p_lt: "p (Suc j) < Suc j"
 begin
 
-definition p :: "nat \<Rightarrow> nat" where "p j = 0"
-
-lemma p_lt:
-  "p (Suc j) < (Suc j)"
-  unfolding p_def by simp
 
 text \<open>Dimensionality given by i\<close>
 function wis :: "nat \<Rightarrow> nat" where
@@ -232,12 +277,43 @@ function wis :: "nat \<Rightarrow> nat" where
 termination
   by (relation "(\<lambda>p. size p) <*mlex*> {}") (auto intro: wf_mlex mlex_less simp: p_lt)
 
-function wis' :: "(nat, nat) dpfun" where
-  "wis' params = checkmem params (case params of
-    0 => \<langle>0\<rangle> |
-    Suc i => max\<^sub>s (wis' (p (Suc i)) +\<^sub>s \<langle>v i\<rangle>) (wis' i))"
+function wis' wis'' :: "(nat, nat) dpfun" where
+  "wis' params = checkmem params (wis'' params)" |
+  "wis'' 0 = \<langle>0\<rangle>" |
+  "wis'' (Suc i) = max\<^sub>s (wis' (p (Suc i)) +\<^sub>s \<langle>v i\<rangle>) (wis' i)"
   by pat_completeness auto
 termination
-  by (relation "(\<lambda>p. size p) <*mlex*> {}") (auto intro: wf_mlex mlex_less simp: p_lt)
+  by (relation "case_sum size size <*mlex*> case_sum (\<lambda>x. Suc 0) (\<lambda>x. 0) <*mlex*> {}")
+     (auto simp: mlex_leq mlex_less wf_mlex p_lt)
 
+lemma nat_le_induct:
+  assumes "P 0" "\<And>x. (\<And>y. y<Suc x \<Longrightarrow> P y) \<Longrightarrow> P (Suc x)"
+    shows "P a"
+proof (cases a)
+  case 0 thus ?thesis using assms(1) by simp next
+  case Suc
+  have "\<And>b. b\<le>a \<Longrightarrow> P b"
+    using assms by (induction a) (auto elim: le_SucE)
+  thus ?thesis by simp
+qed
+
+lemma Suc_elim: "(\<And>y. y<Suc x \<Longrightarrow> P y) \<Longrightarrow> P x"
+  by simp
+
+lemma "consistentDF wis wis'"
+  apply (unfold consistentDF_def, rule allI, induct_tac param rule: nat_le_induct)
+   apply (simp only: wis.simps wis'.simps wis''.simps)
+   apply (rule consistent_checkmem')
+    apply (rule consistentS_return)
+   apply (simp only: wis.simps)
+    
+  apply (simp only: wis.simps wis'.simps wis''.simps)
+  apply (rule consistent_checkmem')
+   apply (rule consistent_max)
+    apply (rule consistent_plus)
+     apply (simp only: p_lt)
+    apply (rule consistentS_return)
+   apply (erule Suc_elim)
+  apply (simp only: wis.simps)
+  done
 end

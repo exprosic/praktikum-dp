@@ -1,11 +1,11 @@
 theory Dynamic_Programming
   imports Main "~~/src/HOL/Library/State_Monad"
 begin
-  
+
 type_synonym ('s, 'a) state = "'s \<Rightarrow> ('a \<times> 's)"
 type_synonym ('param, 'result) dpstate = "('param \<rightharpoonup> 'result, 'result) state"
 type_synonym ('param, 'result) dpfun = "'param \<Rightarrow> ('param, 'result) dpstate"
-  
+
 fun return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") where
   "\<langle>x\<rangle> = (\<lambda>M. (x, M))"
 fun get :: "('s, 's) state" where
@@ -13,7 +13,7 @@ fun get :: "('s, 's) state" where
 fun put :: "'s \<Rightarrow> ('s, unit) state" where
   "put M _ = ((), M)"
 
-  
+
 fun update :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('param, 'result) dpstate" where
   "update params calcVal = exec {
     v \<leftarrow> calcVal;
@@ -29,7 +29,7 @@ fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('
       Some v => \<langle>v\<rangle> |
       None => update params calcVal
     }"
-  
+
 definition lift_binary :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
   "lift_binary f s0 s1 \<equiv> exec {v0 \<leftarrow> s0; v1 \<leftarrow> s1; \<langle>f v0 v1\<rangle>}"
 definition plus_state (infixl "+\<^sub>s" 65) where "op +\<^sub>s \<equiv> lift_binary (op +)"
@@ -38,7 +38,7 @@ definition max\<^sub>s where "max\<^sub>s \<equiv> lift_binary max"
 
 definition consistentM :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param \<rightharpoonup> 'result) \<Rightarrow> bool" where
   "consistentM f M \<equiv> \<forall>param\<in>dom M. M param = Some (f param)"
-  
+
 definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'result \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> bool" where
   "consistentS f v s \<equiv> \<forall>M. consistentM f M \<longrightarrow> fst (s M) = v \<and> consistentM f (snd (s M))"
 
@@ -47,12 +47,12 @@ definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param
 
 lemma consistent_binary:
   assumes c0:"consistentS f v0 s0" and c1:"consistentS f v1 s1"
-    shows "consistentS f (g v0 v1) (lift_binary g s0 s1)" (is ?case)
+  shows "consistentS f (g v0 v1) (lift_binary g s0 s1)" (is ?case)
 proof -
   {
     fix M assume m0: "consistentM f M"
     let ?gvv="g v0 v1" and ?gss="lift_binary g s0 s1"
-      
+
     obtain v0' M0 where p0: "s0 M = (v0',M0)" by fastforce
     with c0 m0 have "v0=v0'" and m1: "consistentM f M0" unfolding consistentS_def by fastforce+
     moreover
@@ -65,7 +65,7 @@ proof -
   }
   thus ?case unfolding consistentS_def by simp
 qed
-  
+
 corollary consistent_plus:
   "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (v0+v1) (s0+\<^sub>ss1)"
   unfolding plus_state_def using consistent_binary[where g="op +"] .
@@ -73,7 +73,7 @@ corollary consistent_plus:
 lemma consistentM_upd: "consistentM f M \<Longrightarrow> consistentM f (M(param\<mapsto>f param))"
   unfolding consistentM_def by auto
 
-lemma consistentS_update: 
+lemma consistentS_update:
   assumes prem: "consistentS f (f param) s"
   shows "consistentS f (f param) (update param s)" (is ?thesis)
 proof -
@@ -116,29 +116,44 @@ fun fib' :: "(nat, nat) dpfun" where
 
 lemma fib'_simps:
   "fib' 0 = checkmem 0 \<langle>0\<rangle>"
-  "fib' 1 = checkmem 1 \<langle>1\<rangle>"
+  "fib' (Suc 0) = checkmem (Suc 0) \<langle>1\<rangle>"
   "fib' (Suc (Suc n)) = checkmem (Suc (Suc n)) (fib' (Suc n) +\<^sub>s fib' n)"
   by auto
-  
+
 lemma "fst (fib' 0 empty) = fib 0"
   by (auto)
 
+lemma consistent_checkmem':
+  assumes "consistentS f v s" "f param = v"
+  shows "consistentS f v (checkmem param s)" (is ?case)
+  using assms(1) unfolding assms(2)[symmetric] by (rule consistent_checkmem)
+
+lemma consistentS_return:
+  "consistentS f v \<langle>v\<rangle>"
+  unfolding consistentS_def by simp
+
+lemma consistent_fib_step:
+  "consistentS fib (fib (Suc n)) (fib' (Suc n)) \<Longrightarrow>
+  consistentS fib (fib n) (fib' n) \<Longrightarrow>
+  consistentS fib (fib (Suc (Suc n))) (fib' (Suc (Suc n)))"
+  apply (simp only: fib'_simps fib.simps)
+  by (intro consistent_checkmem' consistent_plus; simp only: fib.simps)
+
+lemma fib_case_0:
+  "consistentS fib (fib 0) (fib' 0)"
+  apply (simp only: fib'_simps fib.simps)
+  by (intro consistent_checkmem' consistentS_return; simp only: fib.simps)
+
+lemma fib_case_Suc_0:
+  "consistentS fib (fib (Suc 0)) (fib' (Suc 0))"
+  apply (simp only: fib'_simps fib.simps)
+  by (intro consistent_checkmem' consistentS_return; simp only: fib.simps)
+
 lemma "consistentDF fib fib'"
   unfolding consistentDF_def
-    apply rule
+  apply (rule allI)
   apply (induct_tac param rule: fib.induct)
-    apply (auto simp: consistentS_def dom_def consistentM_def split: option.splits)[2]
-proof -
-    fix n
-    show "consistentS fib (fib (Suc n)) (fib' (Suc n)) \<Longrightarrow>
-          consistentS fib (fib n) (fib' n) \<Longrightarrow>
-          consistentS fib (fib (Suc (Suc n))) (fib' (Suc (Suc n)))"
-      apply (simp only: fib'_simps(3))
-      apply (rule consistent_checkmem)
-      apply (simp only: fib.simps(3))
-      apply (rule consistent_plus)
-      .
-  qed
+  by (rule fib_case_0 fib_case_Suc_0 consistent_fib_step)+
 
 (* Bellman Ford *)
 
@@ -159,7 +174,7 @@ fun bf' :: "(nat\<times>nat, int) dpfun" where
     (0, j) => \<langle>W 0 j\<rangle> |
     (Suc k, j) => fold min\<^sub>s [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j)))"
 
-    
+
 
 end
 
@@ -190,7 +205,7 @@ fun su :: "nat \<Rightarrow> nat \<Rightarrow> nat" where
   "su (Suc i) W = (if W < w (Suc i)
     then su i W
     else max (su i W) (w i + su i (W - w i)))"
-  
+
 fun su' :: "(nat\<times>nat, nat) dpfun" where
   "su' params = checkmem params (case params of
     (0, W) => if W < w 0 then \<langle>0\<rangle> else \<langle>w 0\<rangle> |
@@ -216,7 +231,7 @@ function wis :: "nat \<Rightarrow> nat" where
   by pat_completeness auto
 termination
   by (relation "(\<lambda>p. size p) <*mlex*> {}") (auto intro: wf_mlex mlex_less simp: p_lt)
-    
+
 function wis' :: "(nat, nat) dpfun" where
   "wis' params = checkmem params (case params of
     0 => \<langle>0\<rangle> |

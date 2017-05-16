@@ -30,13 +30,13 @@ fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('
       None => update params calcVal
     }"
 
-definition lift_state :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 51) where
-  "lift_state sf sv \<equiv> exec {f \<leftarrow> sf; v \<leftarrow> sv; \<langle>f v\<rangle>}"
+definition lift_fun_app :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 51) where
+  "lift_fun_app sf sv \<equiv> exec {f \<leftarrow> sf; v \<leftarrow> sv; \<langle>f v\<rangle>}"
 
-lemma lift_stateE:
+lemma lift_fun_appE:
   assumes "(sf . sv) M = (v', M')"
   obtains f M'' v where "sf M = (f,M'')" and "sv M'' = (v,M')" and "v' = f v"
-    using assms unfolding lift_state_def return_def by (auto split: prod.splits)
+    using assms unfolding lift_fun_app_def return_def by (auto split: prod.splits)
 
 primrec fold\<^sub>s :: "('M,'a \<Rightarrow> 'b \<Rightarrow> 'b) state \<Rightarrow> ('M,'a) state list \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'b) state" where
 fold\<^sub>s_Nil:  "fold\<^sub>s f [] init = init" |
@@ -79,7 +79,7 @@ lemma consistentDF_I:
 lemma consistent_lift:
   assumes "consistentS dp f f'" "consistentS dp v v'"
   shows "consistentS dp (f v) (f' . v')" (is ?case)
-  using assms by (auto intro!: consistentS_I elim!: lift_stateE dest: consistentS_D)
+  using assms by (auto intro!: consistentS_I elim!: lift_fun_appE dest: consistentS_D)
 
 lemma consistentM_upd: "consistentM f M \<Longrightarrow> v = f param \<Longrightarrow> consistentM f (M(param\<mapsto>v))"
   unfolding consistentM_def by auto

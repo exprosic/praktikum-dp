@@ -6,7 +6,7 @@ type_synonym ('s, 'a) state = "'s \<Rightarrow> ('a \<times> 's)"
 type_synonym ('param, 'result) dpstate = "('param \<rightharpoonup> 'result, 'result) state"
 type_synonym ('param, 'result) dpfun = "'param \<Rightarrow> ('param, 'result) dpstate"
 
-fun return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") where
+definition return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") where
   "\<langle>x\<rangle> = (\<lambda>M. (x, M))"
 fun get :: "('s, 's) state" where
   "get M = (M, M)"
@@ -30,103 +30,88 @@ fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('
       None => update params calcVal
     }"
 
-definition lift_binary :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
-  "lift_binary f s0 s1 \<equiv> exec {v0 \<leftarrow> s0; v1 \<leftarrow> s1; \<langle>f v0 v1\<rangle>}"
-definition plus_state (infixl "+\<^sub>s" 65) where "op +\<^sub>s \<equiv> lift_binary (op +)"
-definition min\<^sub>s where "min\<^sub>s \<equiv> lift_binary min"
-definition max\<^sub>s where "max\<^sub>s \<equiv> lift_binary max"
+definition lift_state :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 51) where
+  "lift_state sf sv \<equiv> exec {f \<leftarrow> sf; v \<leftarrow> sv; \<langle>f v\<rangle>}"
+
+lemma lift_stateE:
+  assumes "(sf . sv) M = (v', M')"
+  obtains f M'' v where "sf M = (f,M'')" and "sv M'' = (v,M')" and "v' = f v"
+    using assms unfolding lift_state_def return_def by (auto split: prod.splits)
+
+primrec fold\<^sub>s :: "('M,'a \<Rightarrow> 'b \<Rightarrow> 'b) state \<Rightarrow> ('M,'a) state list \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'b) state" where
+fold\<^sub>s_Nil:  "fold\<^sub>s f [] init = init" |
+fold\<^sub>s_Cons: "fold\<^sub>s f (x # xs) init = fold\<^sub>s f xs (f . x . init)"
 
 definition consistentM :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param \<rightharpoonup> 'result) \<Rightarrow> bool" where
   "consistentM f M \<equiv> \<forall>param\<in>dom M. M param = Some (f param)"
 
-definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'result \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> bool" where
+lemma consistentM_I:
+  assumes "\<And>param v. M param = Some v \<Longrightarrow> v = f param"
+  shows "consistentM f M"
+  using assms unfolding consistentM_def by auto
+
+lemma consistentM_D:
+  assumes "consistentM f M"
+  shows "M param = Some v \<Longrightarrow> v = f param"
+  using assms by (auto simp: consistentM_def dom_def)
+
+definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'a \<Rightarrow> ('param\<rightharpoonup>'result, 'a) state \<Rightarrow> bool" where
   "consistentS f v s \<equiv> \<forall>M. consistentM f M \<longrightarrow> fst (s M) = v \<and> consistentM f (snd (s M))"
+
+lemma consistentS_I:
+  assumes "\<And>M v' M'. \<lbrakk>consistentM f M; s M = (v',M')\<rbrakk> \<Longrightarrow> v'=v \<and> consistentM f M'"
+  shows "consistentS f v s"
+  by (auto simp: consistentS_def intro!: assms)
+
+lemma consistentS_D:
+  assumes "consistentS f v s" "consistentM f M" "s M = (v',M')"
+  shows consistentS_D1:"v'=v" and consistentS_D2:"consistentM f M'"
+  using assms by(fastforce simp: consistentS_def)+
 
 definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param, 'result) dpfun \<Rightarrow> bool" where
   "consistentDF f d \<equiv> \<forall>param. consistentS f (f param) (d param)"
 
-lemma consistent_binary:
-  assumes c0:"consistentS f v0 s0" and c1:"consistentS f v1 s1"
-  shows "consistentS f (g v0 v1) (lift_binary g s0 s1)" (is ?case)
-proof -
-  {
-    fix M assume m0: "consistentM f M"
-    let ?gvv="g v0 v1" and ?gss="lift_binary g s0 s1"
+lemma consistentDF_I:
+  assumes "\<And>param. consistentS f (f param) (d param)"
+  shows "consistentDF f d"
+  by (auto simp: consistentDF_def intro!: assms)
 
-    obtain v0' M0 where p0: "s0 M = (v0',M0)" by fastforce
-    with c0 m0 have "v0=v0'" and m1: "consistentM f M0" unfolding consistentS_def by fastforce+
-    moreover
-    obtain v1' M1 where p1: "s1 M0 = (v1',M1)" by fastforce
-    with c1 m1 have "v1=v1'" and m2: "consistentM f M1" unfolding consistentS_def by fastforce+
-    moreover
-    from p0 p1 have pg: "?gss M = (g v0' v1', M1)" unfolding lift_binary_def by simp
-    ultimately
-    have "fst (?gss M) = ?gvv" "consistentM f (snd (?gss M))" by auto
-  }
-  thus ?case unfolding consistentS_def by simp
-qed
+lemma consistent_lift:
+  assumes "consistentS dp f f'" "consistentS dp v v'"
+  shows "consistentS dp (f v) (f' . v')" (is ?case)
+  using assms by (auto intro!: consistentS_I elim!: lift_stateE dest: consistentS_D)
 
-corollary
-  consistent_plus: "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (v0+v1) (s0+\<^sub>ss1)" and
-  consistent_min: "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (min v0 v1) (min\<^sub>s s0 s1)" and
-  consistent_max: "consistentS f v0 s0 \<Longrightarrow> consistentS f v1 s1 \<Longrightarrow> consistentS f (max v0 v1) (max\<^sub>s s0 s1)"
-  unfolding plus_state_def min\<^sub>s_def max\<^sub>s_def by (fact consistent_binary)+
-
-lemma consistentM_upd: "consistentM f M \<Longrightarrow> consistentM f (M(param\<mapsto>f param))"
+lemma consistentM_upd: "consistentM f M \<Longrightarrow> v = f param \<Longrightarrow> consistentM f (M(param\<mapsto>v))"
   unfolding consistentM_def by auto
 
-lemma consistentS_update:
-  assumes prem: "consistentS f (f param) s"
-  shows "consistentS f (f param) (update param s)" (is ?thesis)
-proof -
-  {
-    fix M assume cm: "consistentM f M"
-    have "fst (update param s M) = f param \<and> consistentM f (snd (update param s M))"
-      using prem[unfolded consistentS_def, THEN spec, THEN mp, OF cm]
-      by (auto simp: consistentM_upd split: prod.splits)
-  }
-  thus ?thesis unfolding consistentS_def by auto
-qed
-
 lemma consistent_checkmem:
-  assumes prem: "consistentS f (f param) s"
-  shows "consistentS f (f param) (checkmem param s)" (is ?case)
-proof -
-  {
-    fix M assume *: "consistentM f M"
-    have "fst (checkmem param s M) = f param \<and> consistentM f (snd (checkmem param s M))"
-      apply (cases "param \<in> dom M")
-        using * apply (auto simp: consistentM_def)[]
-        using consistentS_update[OF prem] * by (auto simp: consistentS_def)
-  }
-  thus ?case unfolding consistentS_def by simp
-qed
-
-lemma consistent_checkmem':
-  assumes "consistentS f v s" "f param = v"
-  shows "consistentS f v (checkmem param s)" (is ?case)
-  using assms(1) unfolding assms(2)[symmetric] by (rule consistent_checkmem)
+  assumes "consistentS f v s" "v = f param"
+  shows "consistentS f v (checkmem param s)"
+  apply (rule consistentS_I)
+  using assms by (auto split: option.splits prod.splits simp: return_def intro: consistentM_upd dest: consistentS_D consistentM_D)
 
 lemma consistentS_return:
-  "consistentS f v \<langle>v\<rangle>"
-  unfolding consistentS_def by simp
+  "sv = \<langle>v\<rangle> \<Longrightarrow> consistentS dp v sv"
+  unfolding consistentS_def return_def by simp
 
 text \<open>Generalized version of your fold lemma\<close>
-lemma consistent_fold:
+lemma consistent_fold: 
   assumes
     "consistentS dp init init'"
     "list_all2 (consistentS dp) xs xs'"
-    "f' = lift_binary f"
+    "f' = \<langle>f\<rangle>" 
   shows
-    "consistentS dp (fold f xs init) (fold f' xs' init')"
+    "consistentS dp (fold f xs init) (fold\<^sub>s f' xs' init')"
   using assms(2,1,3)
-  by (induction arbitrary: init init' rule: list_all2_induct) (auto simp: consistent_binary)
+  by (induction arbitrary: init init' rule: list_all2_induct)
+     (fastforce simp: assms(3) dest!: consistentS_return consistent_lift)+
+    
 
 lemma consistent_fold':
   "\<lbrakk>consistentS dp init init';
     \<And>i. i\<in>set idx \<Longrightarrow> consistentS dp (ls i) (ls' i);
-    f' = lift_binary f\<rbrakk> \<Longrightarrow>
-   consistentS dp (fold f (map ls idx) init) (fold f' (map ls' idx) init')"
+    f' = \<langle>f\<rangle>\<rbrakk> \<Longrightarrow>
+   consistentS dp (fold f (map ls idx) init) (fold\<^sub>s f' (map ls' idx) init')"
   apply (rule consistent_fold)
     apply assumption
   by (induction idx) auto
@@ -201,13 +186,13 @@ lemmas consistency_rules =
 fun fib :: "nat \<Rightarrow> nat" where
 "fib 0 = 0" |
 "fib (Suc 0) = 1" |
-"fib (Suc(Suc n)) = fib(Suc n) + fib n"
+"fib (Suc(Suc n)) = (op +) (fib (Suc n)) (fib n)"
 
 fun fib' fib'' :: "(nat, nat) dpfun" where
   "fib' param = checkmem param (fib'' param)" |
   "fib'' 0 = \<langle>0\<rangle>" |
   "fib'' (Suc 0) = \<langle>1\<rangle>" |
-  "fib'' (Suc (Suc n)) = fib' (Suc n) +\<^sub>s fib' n"
+  "fib'' (Suc (Suc n)) = \<langle>op +\<rangle> . fib' (Suc n) . fib' n"
 
 lemma "consistentDF fib fib'"
   unfolding consistentDF_def

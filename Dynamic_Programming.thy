@@ -137,16 +137,14 @@ lemma consistent_fold':
   by (induction idx) auto
 
 definition lift_binary :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
-  "lift_binary f s0 s1 \<equiv> exec {v0 \<leftarrow> s0; v1 \<leftarrow> s1; \<langle>f v0 v1\<rangle>}"
-
-lemma lift_binary_alt_def:
-  "lift_binary f a b = \<langle>f\<rangle> . a . b"
-  unfolding lift_binary_def lift_fun_app_def
-  by (auto simp: return_def split: prod.split) (* This proof is slightly brute-force *)
+  "lift_binary f s0 s1 \<equiv> \<langle>f\<rangle> . s0 . s1"
 
 context
   includes lifting_syntax
 begin
+
+lemma consistentDF_alt_def: "consistentDF f d \<longleftrightarrow> (op = ===> consistentS f) f d"
+  unfolding consistentDF_def rel_fun_def by simp
 
 lemma consistent_lift_fun_app_transfer:
   "(consistentS f ===> consistentS f ===> consistentS f) (\<lambda> a b. a b) lift_fun_app"
@@ -154,7 +152,7 @@ lemma consistent_lift_fun_app_transfer:
 
 lemma consistent_binary_transfer:
   "(consistentS f ===> consistentS f ===> consistentS f) g (lift_binary g)"
-  unfolding lift_binary_alt_def
+  unfolding lift_binary_def
   supply [transfer_rule] = consistent_lift_fun_app_transfer consistentS_return
   by transfer_prover
 
@@ -193,7 +191,15 @@ lemma consistent_fold_map_alt:
   shows
     "consistentS dp (fold f (map ls idx) init) (fold (lift_binary f) (map ls' idx) init')"
   supply [transfer_rule] = consistent_binary_transfer assms
-  by transfer_prover
+  by (transfer_prover)
+
+corollary consistentS_fold_I:
+  assumes
+    "consistentS dp init init'"
+    "\<And>i. consistentS dp (ls i) (ls' i)"
+  shows
+    "consistentS dp (fold f (map ls idx) init) (fold (lift_binary f) (map ls' idx) init')"
+    using assms by (simp add: consistent_fold_map_alt rel_fun_def)
 
 lemma consistent_cond_alt:
   assumes "consistentS dp v0 s0" "consistentS dp v1 s1"
@@ -221,7 +227,7 @@ lemma consistent_cond:
 
 lemmas consistency_rules =
   consistent_cond consistent_fold' consistentS_checkmem consistentS_return consistentS_binary
-  consistent_fold_map_alt
+  consistentS_fold_I
 
 term lift_binary
 abbreviation "max\<^sub>s \<equiv> lift_binary max"
@@ -281,8 +287,13 @@ lemma "consistentDF bf bf'"
 
   apply (simp only: bf.simps bf'.simps bf''.simps)
   apply (rule consistentS_checkmem)
-   apply (rule consistent_fold_map_alt)
+   apply (rule consistentS_fold_I)
     apply assumption
+   apply (rule consistentS_binary)
+    apply assumption
+    using consistentS_checkmem
+   apply (auto simp only: rel_fun_def)[]
+    
    apply (assumption | rule consistency_rules HOL.refl)+
    apply (simp only: bf.simps)
   done

@@ -36,7 +36,7 @@ definition lift_fun_app :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) s
 lemma lift_fun_appE:
   assumes "(sf . sv) M = (v', M')"
   obtains f M'' v where "sf M = (f,M'')" and "sv M'' = (v,M')" and "v' = f v"
-    using assms unfolding lift_fun_app_def return_def by (auto split: prod.splits)
+  using assms unfolding lift_fun_app_def return_def by (auto split: prod.splits)
 
 primrec fold\<^sub>s :: "('M,'a \<Rightarrow> 'b \<Rightarrow> 'b) state \<Rightarrow> ('M,'a) state list \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'b) state" where
 fold\<^sub>s_Nil:  "fold\<^sub>s f [] init = init" |
@@ -51,8 +51,13 @@ lemma consistentM_I:
   using assms unfolding consistentM_def by auto
 
 lemma consistentM_D:
-  assumes "consistentM f M"
-  shows "M param = Some v \<Longrightarrow> v = f param"
+  assumes "consistentM f M" "M param = Some v"
+  shows "v = f param"
+  using assms by (auto simp: consistentM_def dom_def)
+
+lemma consistentM_E:
+  assumes "consistentM f M" "M param = Some v"
+  obtains "v = f param"
   using assms by (auto simp: consistentM_def dom_def)
 
 definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'a \<Rightarrow> ('param\<rightharpoonup>'result, 'a) state \<Rightarrow> bool" where
@@ -63,9 +68,9 @@ lemma consistentS_I:
   shows "consistentS f v s"
   by (auto simp: consistentS_def intro!: assms)
 
-lemma consistentS_D:
+lemma consistentS_E:
   assumes "consistentS f v s" "consistentM f M" "s M = (v',M')"
-  shows consistentS_D1:"v'=v" and consistentS_D2:"consistentM f M'"
+  obtains "v'=v" "consistentM f M'"
   using assms by(fastforce simp: consistentS_def)+
 
 definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param, 'result) dpfun \<Rightarrow> bool" where
@@ -78,58 +83,89 @@ lemma consistentDF_I:
 
 lemma consistent_lift:
   assumes "consistentS dp f f'" "consistentS dp v v'"
-  shows "consistentS dp (f v) (f' . v')" (is ?case)
-  using assms by (auto intro!: consistentS_I elim!: lift_fun_appE dest: consistentS_D)
+  shows "consistentS dp (f v) (f' . v')"
+  using assms by (fastforce intro: consistentS_I elim: lift_fun_appE consistentS_E)
 
 lemma consistentM_upd: "consistentM f M \<Longrightarrow> v = f param \<Longrightarrow> consistentM f (M(param\<mapsto>v))"
   unfolding consistentM_def by auto
 
-lemma consistent_checkmem:
-  assumes "consistentS f v s" "v = f param"
-  shows "consistentS f v (checkmem param s)"
-  apply (rule consistentS_I)
-  using assms by (auto split: option.splits prod.splits simp: return_def intro: consistentM_upd dest: consistentS_D consistentM_D)
+lemma consistentS_put:
+  assumes "consistentS f v (sf ())" "consistentM f M"
+  shows "consistentS f v (put M \<circ>\<rightarrow> sf)"
+  using assms by (fastforce intro: consistentS_I elim: consistentS_E)
+
+lemma consistentS_get:
+  assumes "\<And>M. consistentM f M \<Longrightarrow> consistentS f v (sf M)"
+  shows "consistentS f v (get \<circ>\<rightarrow> sf)"
+  using assms by (fastforce intro: consistentS_I elim: consistentS_E)
+
+lemma consistentS_app:
+  assumes "consistentS f v s" "consistentS f v' (sf v)"
+  shows "consistentS f v' (s \<circ>\<rightarrow> sf)"
+  using assms by (fastforce intro: consistentS_I elim: consistentS_E split: prod.splits)
 
 lemma consistentS_return:
-  "sv = \<langle>v\<rangle> \<Longrightarrow> consistentS dp v sv"
+  "v = v' \<Longrightarrow> consistentS dp v \<langle>v'\<rangle>"
   unfolding consistentS_def return_def by simp
+
+lemmas consistentS_basic = consistentS_get consistentS_return consistentS_app consistentS_put
+
+lemma consistentS_checkmem:
+  assumes "consistentS f v s" "v = f param"
+  shows "consistentS f v (checkmem param s)"
+  by (fastforce intro: assms consistentS_basic consistentM_upd elim: consistentM_E split: option.splits)
 
 text \<open>Generalized version of your fold lemma\<close>
 lemma consistent_fold: 
   assumes
     "consistentS dp init init'"
     "list_all2 (consistentS dp) xs xs'"
-    "f' = \<langle>f\<rangle>" 
+    "f' = f" 
   shows
-    "consistentS dp (fold f xs init) (fold\<^sub>s f' xs' init')"
+    "consistentS dp (fold f xs init) (fold\<^sub>s \<langle>f'\<rangle> xs' init')"
   using assms(2,1,3)
   by (induction arbitrary: init init' rule: list_all2_induct)
      (fastforce simp: assms(3) dest!: consistentS_return consistent_lift)+
-    
 
 lemma consistent_fold':
   "\<lbrakk>consistentS dp init init';
     \<And>i. i\<in>set idx \<Longrightarrow> consistentS dp (ls i) (ls' i);
-    f' = \<langle>f\<rangle>\<rbrakk> \<Longrightarrow>
-   consistentS dp (fold f (map ls idx) init) (fold\<^sub>s f' (map ls' idx) init')"
+    f' = f\<rbrakk> \<Longrightarrow>
+   consistentS dp (fold f (map ls idx) init) (fold\<^sub>s \<langle>f'\<rangle> (map ls' idx) init')"
   apply (rule consistent_fold)
     apply assumption
   by (induction idx) auto
+
+definition lift_binary :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
+  "lift_binary f s0 s1 \<equiv> exec {v0 \<leftarrow> s0; v1 \<leftarrow> s1; \<langle>f v0 v1\<rangle>}"
+
+lemma lift_binary_alt_def:
+  "lift_binary f a b = \<langle>f\<rangle> . a . b"
+  unfolding lift_binary_def lift_fun_app_def
+  by (auto simp: return_def split: prod.split) (* This proof is slightly brute-force *)
 
 context
   includes lifting_syntax
 begin
 
+lemma consistent_lift_fun_app_transfer:
+  "(consistentS f ===> consistentS f ===> consistentS f) (\<lambda> a b. a b) lift_fun_app"
+  by (auto simp: rel_fun_def intro: consistent_lift)
+
 lemma consistent_binary_transfer:
   "(consistentS f ===> consistentS f ===> consistentS f) g (lift_binary g)"
-  by (auto simp: rel_fun_def intro: consistent_binary)
+  unfolding lift_binary_alt_def
+  supply [transfer_rule] = consistent_lift_fun_app_transfer consistentS_return
+  by transfer_prover
 
 lemma consistent_fold_alt:
   assumes
     "consistentS dp init init'"
     "list_all2 (consistentS dp) xs xs'"
+    "f' = lift_binary f"
   shows
-    "consistentS dp (fold f xs init) (fold (lift_binary f) xs' init')"
+    "consistentS dp (fold f xs init) (fold f' xs' init')"
+    apply (simp only: assms(3))
   supply [transfer_rule] = consistent_binary_transfer assms
   by transfer_prover
 
@@ -142,7 +178,7 @@ lemma consistent_fold_map:
     (op = ===> consistentS dp) ls ls';
     f' = lift_binary f\<rbrakk> \<Longrightarrow>
    consistentS dp (fold f (map ls idx) init) (fold f' (map ls' idx) init')"
-  apply (rule consistent_fold)
+  apply (rule consistent_fold_alt)
     apply assumption
   subgoal premises prems
     supply [transfer_rule] = prems
@@ -165,6 +201,12 @@ lemma consistent_cond_alt:
   supply [transfer_rule] = assms
   by transfer_prover
 
+lemma consistentS_binary:
+  assumes "consistentS dp v0 s0" "consistentS dp v1 s1"
+  shows "consistentS dp (f v0 v1) (lift_binary f s0 s1)"
+  supply [transfer_rule] = consistent_binary_transfer assms
+    by transfer_prover
+
 text \<open>
   Conclusion: the default parametricity rules for \<open>map\<close> and \<open>if _ then _ else\<close> are too weak.
   Fold works out of the box.
@@ -178,38 +220,38 @@ lemma consistent_cond:
   using assms by auto
 
 lemmas consistency_rules =
-  consistent_cond consistent_fold' consistent_max consistent_plus consistent_checkmem'
-  consistentS_return
+  consistent_cond consistent_fold' consistentS_checkmem consistentS_return consistentS_binary
+  consistent_fold_map_alt
+
+term lift_binary
+abbreviation "max\<^sub>s \<equiv> lift_binary max"
+abbreviation "min\<^sub>s \<equiv> lift_binary min"
+abbreviation plus_state (infixl "+\<^sub>s" 65) where "op +\<^sub>s \<equiv> lift_binary (op +)"
 
 (* Fib *)
 
 fun fib :: "nat \<Rightarrow> nat" where
 "fib 0 = 0" |
 "fib (Suc 0) = 1" |
-"fib (Suc(Suc n)) = (op +) (fib (Suc n)) (fib n)"
+"fib (Suc(Suc n)) = fib (Suc n) + fib n"
 
 fun fib' fib'' :: "(nat, nat) dpfun" where
   "fib' param = checkmem param (fib'' param)" |
   "fib'' 0 = \<langle>0\<rangle>" |
   "fib'' (Suc 0) = \<langle>1\<rangle>" |
-  "fib'' (Suc (Suc n)) = \<langle>op +\<rangle> . fib' (Suc n) . fib' n"
+  "fib'' (Suc (Suc n)) = fib' (Suc n) +\<^sub>s fib' n"
 
 lemma "consistentDF fib fib'"
-  unfolding consistentDF_def
-  apply (rule allI)
-  apply (induct_tac param rule: fib.induct)
+  apply (rule consistentDF_I, induct_tac rule: fib.induct)
 
     apply (simp only: fib'.simps fib''.simps fib.simps)
-    apply (assumption | rule consistency_rules)+
-    apply (simp_all only: fib.simps)
+    apply (assumption | rule consistency_rules | simp only: only: fib.simps)+
 
    apply (simp only: fib'.simps fib''.simps fib.simps)
-   apply (assumption | rule consistency_rules)+
-   apply (simp_all only: fib.simps)
+   apply (assumption | rule consistency_rules | simp only: only: fib.simps)+
 
   apply (simp only: fib'.simps fib''.simps fib.simps)
-  apply (assumption | rule consistency_rules)+
-  apply (simp_all only: fib.simps)
+  apply (assumption | rule consistency_rules | simp only: only: fib.simps)+
   done
 
 (* Bellman Ford *)
@@ -232,15 +274,17 @@ fun bf' bf'' :: "(nat\<times>nat, int) dpfun" where
   "bf'' (Suc k, j) = fold min\<^sub>s [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j))"
 
 lemma "consistentDF bf bf'"
-  apply (unfold consistentDF_def, rule allI, induct_tac rule: bf.induct)
+  apply (rule consistentDF_I, induct_tac rule: bf.induct)
    apply (simp only: bf.simps bf'.simps bf''.simps)
-   apply (assumption | rule consistency_rules)+
+   apply (assumption | rule consistency_rules HOL.refl)+
    apply (simp only: bf.simps)
 
   apply (simp only: bf.simps bf'.simps bf''.simps)
-    apply (assumption | rule consistency_rules)+
-   apply (simp only: min\<^sub>s_def)
-  apply (simp only: bf.simps)
+  apply (rule consistentS_checkmem)
+   apply (rule consistent_fold_map_alt)
+    apply assumption
+   apply (assumption | rule consistency_rules HOL.refl)+
+   apply (simp only: bf.simps)
   done
 
 end
@@ -263,7 +307,7 @@ thm minus_nat_inst.minus_nat
 
 lemma "consistentDF ed ed'"
   by (unfold consistentDF_def, rule allI, induct_tac rule: ed.induct)
-     (auto simp only: ed.simps ed'.simps ed''.simps intro!: consistent_checkmem' consistentS_return consistent_min consistent_plus)
+     (auto simp only: ed.simps ed'.simps ed''.simps intro!: consistentS_checkmem' consistentS_return consistent_min consistent_plus)
 
 term "(a :: nat) - (b :: nat)"
 

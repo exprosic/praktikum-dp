@@ -189,5 +189,4 @@ end (* End of lifting syntax *)
 lemmas consistency_rules =
   consistent_cond consistent_fold' consistentS_checkmem consistentS_return consistentS_binary
 
-
 end

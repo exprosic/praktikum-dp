@@ -1,5 +1,5 @@
 theory Dynamic_Programming
-  imports DP_Lift DP_Consistency
+  imports DP_Lift DP_Consistency DP_Proof
 begin
 
 (* Fib *)
@@ -15,17 +15,7 @@ fun fib' :: "(nat, nat) dpfun" where
   "fib' (Suc (Suc n)) = checkmem (Suc (Suc n)) (fib' (Suc n) +\<^sub>s fib' n)"
 
 lemma "consistentDF fib fib'"
-  apply (rule consistentDF_I, induct_tac rule: fib.induct)
-
-    apply (simp only: fib'.simps fib.simps)
-    apply (assumption | rule consistency_rules | simp only: only: fib.simps)+
-
-   apply (simp only: fib'.simps fib.simps)
-   apply (assumption | rule consistency_rules | simp only: only: fib.simps)+
-
-  apply (simp only: fib'.simps fib.simps)
-  apply (assumption | rule consistency_rules | simp only: only: fib.simps)+
-  done
+  by (dp_match induct: fib.induct simp: fib.simps fib'.simps)
 
 (* Bellman Ford *)
 
@@ -46,15 +36,7 @@ fun bf' :: "(nat\<times>nat, int) dpfun" where
   "bf' (Suc k, j) = checkmem (Suc k,j) (fold\<^sub>s \<langle>min\<rangle> [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j)))"
 
 lemma "consistentDF bf bf'"
-  apply (rule consistentDF_I, induct_tac rule: bf.induct)
-   apply (simp only: bf.simps bf'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: bf.simps)
-
-   apply (simp only: bf.simps bf'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: bf.simps)
-  done
+  by (dp_match induct: bf.induct simp: bf.simps bf'.simps)
 
 end
 
@@ -71,27 +53,9 @@ fun ed'  :: "(nat\<times>nat, nat) dpfun" where
   "ed' (0, Suc j) = checkmem (0,Suc j) (\<langle>Suc j\<rangle>)" |
   "ed' (Suc i, 0) = checkmem (Suc i,0) (\<langle>Suc i\<rangle>)" |
   "ed' (Suc i, Suc j) = checkmem (Suc i,Suc j) (min\<^sub>s (ed' (i, j) +\<^sub>s \<langle>2\<rangle>) (min\<^sub>s (ed' (Suc i, j) +\<^sub>s \<langle>1\<rangle>) (ed' (i, Suc j) +\<^sub>s \<langle>1\<rangle>)))"
-thm minus_nat_inst.minus_nat
 
 lemma "consistentDF ed ed'"
-  apply (rule consistentDF_I, induct_tac rule: ed.induct)
-   apply (simp only: ed.simps ed'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: ed.simps)
-
-   apply (simp only: ed.simps ed'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: ed.simps)
-
-   apply (simp only: ed.simps ed'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: ed.simps)
-
-   apply (simp only: ed.simps ed'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: ed.simps)
-  done
-term "(a :: nat) - (b :: nat)"
+  by (dp_match induct: ed.induct simp: ed.simps ed'.simps)
 
 context
   fixes w :: "nat \<Rightarrow> nat"
@@ -108,17 +72,10 @@ fun su' :: "(nat\<times>nat, nat) dpfun" where
   "su' (Suc i, W) = checkmem (Suc i,W) (if\<^sub>s \<langle>W < w (Suc i)\<rangle>
     then\<^sub>s su' (i, W)
     else\<^sub>s max\<^sub>s (su' (i, W)) (\<langle>w i\<rangle> +\<^sub>s su' (i, W - w i)))"
-
+  
 lemma "consistentDF su su'"
-  apply (unfold consistentDF_def, rule allI, induct_tac rule: su.induct)
-   apply (simp only: su.simps su'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: su.simps)
+  by (dp_match induct: su.induct simp: su.simps su'.simps)
 
-   apply (simp only: su.simps su'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: su.simps)
-  done
 end
 
 context
@@ -144,14 +101,6 @@ termination
   by (relation "(\<lambda>p. size p) <*mlex*> {}") (auto intro: wf_mlex mlex_less simp: p_lt)
 
 lemma "consistentDF wis wis'"
-  apply (rule consistentDF_I, induct_tac param rule: wis.induct)
-   apply (simp only: wis.simps wis'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: wis.simps)
+  by (dp_match induct: wis.induct simp: wis.simps wis'.simps)
 
-   apply (simp only: wis.simps wis'.simps)
-   apply (assumption | rule consistency_rules HOL.refl)+
-   apply (simp only: wis.simps)
-    
-  done
 end

@@ -6,14 +6,14 @@ context (* Fibonacci *)
 begin
 
 fun fib :: "nat \<Rightarrow> nat" where
-"fib 0 = 0" |
-"fib (Suc 0) = 1" |
-"fib (Suc(Suc n)) = fib (Suc n) + fib n"
+  "fib 0 = 0" |
+  "fib (Suc 0) = 1" |
+  "fib (Suc(Suc n)) = fib (Suc n) + fib n"
 
 fun fib' :: "nat \<Rightarrow>\<^sub>s nat" where
-  "fib'$ 0 = \<langle>0\<rangle>" |
-  "fib'$ (Suc 0) = \<langle>1\<rangle>" |
-  "fib'$ (Suc (Suc n)) = fib' (Suc n) +\<^sub>s fib' n"
+  "fib'$ 0 =CHECKMEM= \<langle>0\<rangle>" |
+  "fib'$ (Suc 0) =CHECKMEM= \<langle>1\<rangle>" |
+  "fib'$ (Suc (Suc n)) =CHECKMEM= fib' (Suc n) +\<^sub>s fib' n"
 
 lemma "consistentDF fib fib'"
   by (dp_match induct: fib.induct simp: fib.simps fib'.simps)
@@ -35,8 +35,8 @@ fun bf :: "(nat\<times>nat) \<Rightarrow> int" where
   "bf (Suc k, j) = fold min [bf (k, i) + W i j. i\<leftarrow>[0..<n]] (bf (k, j))"
 
 fun bf' :: "nat\<times>nat \<Rightarrow>\<^sub>s int" where
-  "bf'$ (0, j) = \<langle>W 0 j\<rangle>" |
-  "bf'$ (Suc k, j) = fold\<^sub>s \<langle>min\<rangle> [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j))"
+  "bf'$ (0, j) =CHECKMEM= \<langle>W 0 j\<rangle>" |
+  "bf'$ (Suc k, j) =CHECKMEM= fold\<^sub>s \<langle>min\<rangle> [bf' (k, i) +\<^sub>s \<langle>W i j\<rangle>. i\<leftarrow>[0..<n]] (bf' (k, j))"
 
 lemma "consistentDF bf bf'"
   by (dp_match induct: bf.induct simp: bf.simps bf'.simps)
@@ -76,8 +76,8 @@ fun su :: "(nat\<times>nat) \<Rightarrow> nat" where
     else max (su (i, W)) (w i + su (i, W - w i)))"
 
 fun su' :: "nat\<times>nat \<Rightarrow>\<^sub>s nat" where
-  "su'$ (0, W) = (if\<^sub>s \<langle>W < w 0\<rangle> then\<^sub>s \<langle>0\<rangle> else\<^sub>s \<langle>w 0\<rangle>)" |
-  "su'$ (Suc i, W) = (if\<^sub>s \<langle>W < w (Suc i)\<rangle>
+  "su'$ (0, W) =CHECKMEM= (if\<^sub>s \<langle>W < w 0\<rangle> then\<^sub>s \<langle>0\<rangle> else\<^sub>s \<langle>w 0\<rangle>)" |
+  "su'$ (Suc i, W) =CHECKMEM= (if\<^sub>s \<langle>W < w (Suc i)\<rangle>
     then\<^sub>s su' (i, W)
     else\<^sub>s max\<^sub>s (su' (i, W)) (\<langle>w i\<rangle> +\<^sub>s su' (i, W - w i)))"
   
@@ -102,8 +102,8 @@ termination
   by (relation "(\<lambda>p. size p) <*mlex*> {}") (auto intro: wf_mlex mlex_less simp: p_lt)
 
 function wis' :: "nat \<Rightarrow>\<^sub>s nat" where
-  "wis'$ 0 = \<langle>0\<rangle>" |
-  "wis'$ (Suc i) = max\<^sub>s (wis' (p (Suc i)) +\<^sub>s \<langle>v i\<rangle>) (wis' i)"
+  "wis'$ 0 =CHECKMEM= \<langle>0\<rangle>" |
+  "wis'$ (Suc i) =CHECKMEM= max\<^sub>s (wis' (p (Suc i)) +\<^sub>s \<langle>v i\<rangle>) (wis' i)"
   by pat_completeness auto
 termination
   by (relation "(\<lambda>p. size p) <*mlex*> {}") (auto intro: wf_mlex mlex_less simp: p_lt)

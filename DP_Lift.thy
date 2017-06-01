@@ -36,8 +36,8 @@ fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('
       None => update params calcVal
     }"
 
-abbreviation dpfun_checkmem_eq ("(_/ $ _/ = _)"  [1000, 51] 51) where
-  "f $ param = result \<equiv> f param = checkmem param result"
+abbreviation dpfun_checkmem_eq ("(_/ $ _/ =CHECKMEM= _)"  [1000, 51] 51) where
+  "f $ param =CHECKMEM= result \<equiv> f param = checkmem param result"
 
 lemma lift_fun_appE:
   assumes "(sf . sv) M = (v', M')"

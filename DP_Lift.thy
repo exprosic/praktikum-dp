@@ -13,7 +13,7 @@ fun get :: "('s, 's) state" where
 fun put :: "'s \<Rightarrow> ('s, unit) state" where
   "put M _ = ((), M)"
 
-definition lift_fun_app :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 51) where
+definition lift_fun_app :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 999) where
   "lift_fun_app sf sv \<equiv> exec {f \<leftarrow> sf; v \<leftarrow> sv; \<langle>f v\<rangle>}"
 definition If\<^sub>s :: "('M,bool) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'a) state" ("(if\<^sub>s (_)/ then\<^sub>s (_)/ else\<^sub>s (_))" [0, 0, 10] 10)
   where "If\<^sub>s P x y \<equiv> exec {p \<leftarrow> P; if p then x else y}"

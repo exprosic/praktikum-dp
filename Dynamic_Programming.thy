@@ -2,7 +2,8 @@ theory Dynamic_Programming
   imports DP_Lift DP_Consistency DP_Proof
 begin
 
-(* Fib *)
+context (* Fibonacci *)
+begin
 
 fun fib :: "nat \<Rightarrow> nat" where
 "fib 0 = 0" |
@@ -16,6 +17,8 @@ fun fib' :: "(nat, nat) dpfun" where
 
 lemma "consistentDF fib fib'"
   by (dp_match induct: fib.induct simp: fib.simps fib'.simps)
+
+end
 
 (* Bellman Ford *)
 
@@ -40,6 +43,9 @@ lemma "consistentDF bf bf'"
 
 end
 
+context (* *)
+begin
+
 text \<open>Not primrec\<close>
 text \<open>Dimensionality given by i, j\<close>
 fun ed :: "(nat\<times>nat) \<Rightarrow> nat" where
@@ -57,7 +63,9 @@ fun ed'  :: "(nat\<times>nat, nat) dpfun" where
 lemma "consistentDF ed ed'"
   by (dp_match induct: ed.induct simp: ed.simps ed'.simps)
 
-context
+end
+
+context (* Knapsack *)
   fixes w :: "nat \<Rightarrow> nat"
 begin
 
@@ -78,7 +86,7 @@ lemma "consistentDF su su'"
 
 end
 
-context
+context (* Longest path *)
   fixes v :: "nat \<Rightarrow> nat"
     and p :: "nat \<Rightarrow> nat"
   assumes p_lt: "p (Suc j) < Suc j"
@@ -103,4 +111,6 @@ termination
 lemma "consistentDF wis wis'"
   by (dp_match induct: wis.induct simp: wis.simps wis'.simps)
 
+end
+  
 end

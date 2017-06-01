@@ -4,7 +4,7 @@ begin
 
 type_synonym ('s, 'a) state = "'s \<Rightarrow> ('a \<times> 's)"
 type_synonym ('param, 'result) dpstate = "('param \<rightharpoonup> 'result, 'result) state"
-type_synonym ('param, 'result) dpfun = "'param \<Rightarrow> ('param, 'result) dpstate"
+type_synonym ('param, 'result) dpfun = "'param \<Rightarrow> ('param, 'result) dpstate" (infixr "\<Rightarrow>\<^sub>s" 2)
 
 definition return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") where
   "\<langle>x\<rangle> = (\<lambda>M. (x, M))"
@@ -35,6 +35,9 @@ fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('
       Some v => \<langle>v\<rangle> |
       None => update params calcVal
     }"
+
+abbreviation dpfun_checkmem_eq ("(_/ $ _/ = _)"  [1000, 51] 51) where
+  "f $ param = result \<equiv> f param = checkmem param result"
 
 lemma lift_fun_appE:
   assumes "(sf . sv) M = (v', M')"

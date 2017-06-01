@@ -33,7 +33,7 @@ lemma consistentS_E:
   using assms(1)[unfolded consistentS_def, THEN spec, THEN mp, OF assms(2)]
     by (auto intro: prod.exhaust_sel)
 
-definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param, 'result) dpfun \<Rightarrow> bool" where
+definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param \<Rightarrow>\<^sub>s 'result) \<Rightarrow> bool" where
   "consistentDF f d \<equiv> \<forall>param. consistentS f (f param) (d param)"
 
 lemma consistentDF_I:

@@ -30,8 +30,7 @@ lemma consistentS_I:
 lemma consistentS_E:
   assumes "consistentS f v s" "consistentM f M"
   obtains v' M' where "s M = (v',M')" "v'=v" "consistentM f M'"
-  using assms(1)[unfolded consistentS_def, THEN spec, THEN mp, OF assms(2)]
-    by (auto intro: prod.exhaust_sel)
+  using assms by (force simp: consistentS_def)
 
 definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param \<Rightarrow>\<^sub>s 'result) \<Rightarrow> bool" where
   "consistentDF f d \<equiv> \<forall>param. consistentS f (f param) (d param)"
@@ -52,12 +51,12 @@ lemma consistentM_upd: "consistentM f M \<Longrightarrow> v = f param \<Longrigh
 lemma consistentS_put:
   assumes "consistentS f v sf" "consistentM f M"
   shows "consistentS f v (put M \<circ>> sf)"
-  using assms by (fastforce intro: consistentS_I elim: consistentS_E)
+  unfolding put_def using assms by (fastforce intro: consistentS_I elim: consistentS_E)
 
 lemma consistentS_get:
   assumes "\<And>M. consistentM f M \<Longrightarrow> consistentS f v (sf M)"
   shows "consistentS f v (get \<circ>\<rightarrow> sf)"
-  using assms by (fastforce intro: consistentS_I elim: consistentS_E)
+  unfolding get_def using assms by (fastforce intro: consistentS_I elim: consistentS_E)
 
 lemma consistentS_app:
   assumes "consistentS f v s" "consistentS f v' (sf v)"
@@ -68,18 +67,13 @@ lemma consistentS_return:
   "v = v' \<Longrightarrow> consistentS dp v \<langle>v'\<rangle>"
   unfolding consistentS_def return_def by simp
 
-lemma monad_return_scomp:
-  "\<langle>a\<rangle> \<circ>\<rightarrow> s = s a"
-  unfolding return_def by auto
-
-thm monad_simp    
-
-lemmas consistentS_basics = consistentS_get consistentS_return consistentS_app consistentS_put
+lemmas consistentS_basics =
+  consistentS_return consistentS_app consistentS_get consistentS_put
 
 lemma consistentS_checkmem:
   assumes "consistentS f v s" "v = f param"
   shows "consistentS f v (checkmem param s)"
-  by (fastforce intro: assms consistentS_basics consistentM_upd elim: consistentM_E split: option.splits)
+  using assms by (auto intro!: consistentS_basics consistentM_upd elim: consistentM_E split: option.splits)
 
 text \<open>Generalized version of your fold lemma\<close>
 lemma consistent_fold: 

@@ -8,9 +8,9 @@ type_synonym ('param, 'result) dpfun = "'param \<Rightarrow> ('param, 'result) d
 
 definition return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") where
   "\<langle>x\<rangle> = (\<lambda>M. (x, M))"
-fun get :: "('s, 's) state" where
+definition get :: "('s, 's) state" where
   "get M = (M, M)"
-fun put :: "'s \<Rightarrow> 's \<Rightarrow> 's" where
+definition put :: "'s \<Rightarrow> 's \<Rightarrow> 's" where
   "put M = (\<lambda>_. M)"
 
 definition lift_fun_app :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 999) where

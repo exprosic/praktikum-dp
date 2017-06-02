@@ -110,14 +110,6 @@ termination
 
 lemma "consistentDF wis wis'"
   by (dp_match induct: wis.induct simp: wis.simps wis'.simps)
-
-ML \<open>
-Function.get_info @{context} @{term wis} |> #simps |> the;
-val th = Function.get_info @{context} @{term wis'} |> #simps |> the |> hd;
-th |> Thm.full_prop_of;
-@{term dpfun_checkmem_eq};
-val t = #simps {simps = 3, blah = 5};
-\<close>
 end
   
 end

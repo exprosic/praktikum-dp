@@ -50,8 +50,8 @@ lemma consistentM_upd: "consistentM f M \<Longrightarrow> v = f param \<Longrigh
   unfolding consistentM_def by auto
 
 lemma consistentS_put:
-  assumes "consistentS f v (sf ())" "consistentM f M"
-  shows "consistentS f v (put M \<circ>\<rightarrow> sf)"
+  assumes "consistentS f v sf" "consistentM f M"
+  shows "consistentS f v (put M \<circ>> sf)"
   using assms by (fastforce intro: consistentS_I elim: consistentS_E)
 
 lemma consistentS_get:

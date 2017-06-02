@@ -10,8 +10,8 @@ definition return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") w
   "\<langle>x\<rangle> = (\<lambda>M. (x, M))"
 fun get :: "('s, 's) state" where
   "get M = (M, M)"
-fun put :: "'s \<Rightarrow> ('s, unit) state" where
-  "put M _ = ((), M)"
+fun put :: "'s \<Rightarrow> 's \<Rightarrow> 's" where
+  "put M = (\<lambda>_. M)"
 
 definition lift_fun_app :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 999) where
   "lift_fun_app sf sv \<equiv> exec {f \<leftarrow> sf; v \<leftarrow> sv; \<langle>f v\<rangle>}"
@@ -20,20 +20,17 @@ definition If\<^sub>s :: "('M,bool) state \<Rightarrow> ('M,'a) state \<Rightarr
 definition lift_binary :: "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state \<Rightarrow> ('M,'c) state" where
   "lift_binary f s0 s1 \<equiv> \<langle>f\<rangle> . s0 . s1"
 
-fun update :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('param, 'result) dpstate" where
-  "update params calcVal = exec {
-    v \<leftarrow> calcVal;
-    M' \<leftarrow> get;
-    _ \<leftarrow> put (M'(params\<mapsto>v));
-    \<langle>v\<rangle>
-  }"
-
 fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('param, 'result) dpstate" where
   "checkmem params calcVal = exec {
     M \<leftarrow> get;
     case M params of
       Some v => \<langle>v\<rangle> |
-      None => update params calcVal
+      None => exec {
+        v \<leftarrow> calcVal;
+        M' \<leftarrow> get;
+        put (M'(params\<mapsto>v));
+        \<langle>v\<rangle>
+      }
     }"
 
 abbreviation dpfun_checkmem_eq ("(_/ $ _/ =CHECKMEM= _)"  [1000, 51] 51) where

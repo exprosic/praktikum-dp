@@ -30,7 +30,7 @@ begin
 text \<open>Could also be primrec\<close>
 text \<open>Dimensionality as parameter\<close>
 
-fun bf :: "(nat\<times>nat) \<Rightarrow> int" where
+fun bf :: "nat\<times>nat \<Rightarrow> int" where
   "bf (0, j) = W 0 j" |
   "bf (Suc k, j) = fold min [bf (k, i) + W i j. i\<leftarrow>[0..<n]] (bf (k, j))"
 
@@ -48,7 +48,7 @@ begin
 
 text \<open>Not primrec\<close>
 text \<open>Dimensionality given by i, j\<close>
-fun ed :: "(nat\<times>nat) \<Rightarrow> nat" where
+fun ed :: "nat\<times>nat \<Rightarrow> nat" where
   "ed (0, 0) = 0" |
   "ed (0, Suc j) = Suc j" |
   "ed (Suc i, 0) = Suc i" |
@@ -69,7 +69,7 @@ context (* Knapsack *)
   fixes w :: "nat \<Rightarrow> nat"
 begin
 
-fun su :: "(nat\<times>nat) \<Rightarrow> nat" where
+fun su :: "nat\<times>nat \<Rightarrow> nat" where
   "su (0, W) = (if W < w 0 then 0 else w 0)" |
   "su (Suc i, W) = (if W < w (Suc i)
     then su (i, W)
@@ -111,5 +111,4 @@ termination
 lemma "consistentDF wis wis'"
   by (dp_match induct: wis.induct simp: wis.simps wis'.simps)
 end
-  
 end

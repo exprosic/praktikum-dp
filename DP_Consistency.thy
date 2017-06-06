@@ -8,17 +8,12 @@ definition consistentM :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param 
 lemma consistentM_I:
   assumes "\<And>param v. M param = Some v \<Longrightarrow> v = f param"
   shows "consistentM f M"
-  using assms unfolding consistentM_def by auto
+  using assms unfolding consistentM_def by (auto)
 
 lemma consistentM_D:
   assumes "consistentM f M" "M param = Some v"
   shows "v = f param"
-  using assms by (auto simp: consistentM_def dom_def)
-
-lemma consistentM_E:
-  assumes "consistentM f M" "M param = Some v"
-  obtains "v = f param"
-  using assms by (auto simp: consistentM_def dom_def)
+  using assms unfolding consistentM_def by (auto simp: dom_def)
 
 definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'a \<Rightarrow> ('param\<rightharpoonup>'result, 'a) state \<Rightarrow> bool" where
   "consistentS f v s \<equiv> \<forall>M. consistentM f M \<longrightarrow> fst (s M) = v \<and> consistentM f (snd (s M))"
@@ -26,11 +21,12 @@ definition consistentS :: "('param \<Rightarrow> 'result) \<Rightarrow> 'a \<Rig
 lemma consistentS_I:
   assumes "\<And>M v' M'. \<lbrakk>consistentM f M; s M = (v',M')\<rbrakk> \<Longrightarrow> v'=v \<and> consistentM f M'"
   shows "consistentS f v s"
-  by (auto simp: consistentS_def intro!: assms)
+  using assms unfolding consistentS_def by (blast intro: prod.exhaust_sel)
+
 lemma consistentS_E:
   assumes "consistentS f v s" "consistentM f M"
   obtains v' M' where "s M = (v',M')" "v'=v" "consistentM f M'"
-  using assms by (force simp: consistentS_def)
+  using assms unfolding consistentS_def by (blast intro: prod.exhaust_sel)
 
 definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param \<Rightarrow>\<^sub>s 'result) \<Rightarrow> bool" where
   "consistentDF f d \<equiv> \<forall>param. consistentS f (f param) (d param)"
@@ -38,7 +34,7 @@ definition consistentDF :: "('param \<Rightarrow> 'result) \<Rightarrow> ('param
 lemma consistentDF_I:
   assumes "\<And>param. consistentS f (f param) (d param)"
   shows "consistentDF f d"
-  by (auto simp: consistentDF_def intro!: assms)
+  using assms unfolding consistentDF_def by (blast)
 
 lemma consistentS_lift:
   assumes "consistentS dp f f'" "consistentS dp v v'"
@@ -46,7 +42,7 @@ lemma consistentS_lift:
   using assms by (fastforce intro: consistentS_I elim: lift_fun_appE consistentS_E)
 
 lemma consistentM_upd: "consistentM f M \<Longrightarrow> v = f param \<Longrightarrow> consistentM f (M(param\<mapsto>v))"
-  unfolding consistentM_def by auto
+  unfolding consistentM_def by (auto)
 
 lemma consistentS_put:
   assumes "consistentS f v sf" "consistentM f M"
@@ -65,16 +61,16 @@ lemma consistentS_app:
 
 lemma consistentS_return:
   "v = v' \<Longrightarrow> consistentS dp v \<langle>v'\<rangle>"
-  unfolding consistentS_def return_def by simp
+  unfolding return_def by (fastforce intro: consistentS_I)
 
-lemmas consistentS_basics =
+lemmas consistentS_basic_intros =
   consistentS_return consistentS_app consistentS_get consistentS_put
 
 lemma consistentS_checkmem:
   assumes "consistentS f v s" "v = f param"
   shows "consistentS f v (checkmem param s)"
-  using assms by (auto intro!: consistentS_basics consistentM_upd elim: consistentM_E split: option.splits)
-
+  using assms by (fastforce intro: consistentS_basic_intros consistentM_upd dest: consistentM_D split: option.splits)
+                                                     
 text \<open>Generalized version of your fold lemma\<close>
 lemma consistent_fold: 
   assumes
@@ -99,12 +95,12 @@ lemma consistent_fold':
 lemma consistent_cond:
   assumes "consistentS dp b sb" "b \<Longrightarrow> consistentS dp v0 s0" "\<not>b \<Longrightarrow> consistentS dp v1 s1"
   shows "consistentS dp (if b then v0 else v1) (if\<^sub>s sb then\<^sub>s s0 else\<^sub>s s1)"
-  using assms by (auto simp: If\<^sub>s_def intro: consistentS_app)
+  using assms unfolding If\<^sub>s_def by (auto intro: consistentS_app)
 
 lemma consistent_cond':
   assumes "b \<Longrightarrow> consistentS dp v0 s0" "\<not>b \<Longrightarrow> consistentS dp v1 s1"
   shows "consistentS dp (if b then v0 else v1) (if b then s0 else s1)"
-  using assms by auto
+  using assms by (auto)
 
 
 context

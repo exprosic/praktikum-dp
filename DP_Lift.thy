@@ -2,16 +2,16 @@ theory DP_Lift
   imports Main "~~/src/HOL/Library/State_Monad"
 begin
 
-type_synonym ('s, 'a) state = "'s \<Rightarrow> ('a \<times> 's)"
+type_synonym ('s, 'a) state = "'s \<Rightarrow> 'a\<times>'s"
 type_synonym ('param, 'result) dpstate = "('param \<rightharpoonup> 'result, 'result) state"
 type_synonym ('param, 'result) dpfun = "'param \<Rightarrow> ('param, 'result) dpstate" (infixr "\<Rightarrow>\<^sub>s" 2)
 
 definition return :: "'a \<Rightarrow> ('s, 'a) state" ("\<langle>_\<rangle>") where
-  "\<langle>x\<rangle> = (\<lambda>M. (x, M))"
+  "\<langle>x\<rangle> \<equiv> \<lambda>M. (x, M)"
 definition get :: "('s, 's) state" where
-  "get M = (M, M)"
+  "get \<equiv> \<lambda>M. (M, M)"
 definition put :: "'s \<Rightarrow> 's \<Rightarrow> 's" where
-  "put M = (\<lambda>_. M)"
+  "put M \<equiv> \<lambda>_. M"
 
 definition lift_fun_app :: "('M,'a\<Rightarrow>'b) state \<Rightarrow> ('M,'a) state \<Rightarrow> ('M,'b) state" (infixl "." 999) where
   "lift_fun_app sf sv \<equiv> exec {f \<leftarrow> sf; v \<leftarrow> sv; \<langle>f v\<rangle>}"
@@ -24,17 +24,17 @@ fun checkmem :: "'param \<Rightarrow> ('param, 'result) dpstate \<Rightarrow> ('
   "checkmem params calcVal = exec {
     M \<leftarrow> get;
     case M params of
-      Some v => \<langle>v\<rangle> |
+      Some v => return v |
       None => exec {
         v \<leftarrow> calcVal;
         M' \<leftarrow> get;
         put (M'(params\<mapsto>v));
-        \<langle>v\<rangle>
+        return v
       }
     }"
 
 abbreviation dpfun_checkmem_eq ("(_/ $ _/ =CHECKMEM= _)"  [1000, 51] 51) where
-  "f $ param =CHECKMEM= result \<equiv> f param = checkmem param result"
+  "(f $ param =CHECKMEM= result) \<equiv> (f param = checkmem param result)"
 
 lemma lift_fun_appE:
   assumes "(sf . sv) M = (v', M')"

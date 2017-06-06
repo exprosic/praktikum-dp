@@ -1,320 +1,191 @@
 theory Scratch imports        
   Main
-begin
-
-fun f where
-  "f 0 = 0" |
-  "f (Suc i) = i + f i"
-thm f.termination
-term 3
-
-definition "a == 5"
+keywords
+  "gun" :: thy_decl
   
+begin
+  ML \<open>@{context}\<close>
 ML \<open>
-(*  Title:      HOL/Tools/Function/function.ML
-    Author:     Alexander Krauss, TU Muenchen
-
-Main entry points to the function package.
-*)
-
-signature FUNCTION =
-sig
-  include FUNCTION_DATA
-
-  val add_function: (binding * typ option * mixfix) list ->
-    Specification.multi_specs -> Function_Common.function_config ->
-    (Proof.context -> tactic) -> local_theory -> info * local_theory
-
-  val add_function_cmd: (binding * string option * mixfix) list ->
-    Specification.multi_specs_cmd -> Function_Common.function_config ->
-    (Proof.context -> tactic) -> bool -> local_theory -> info * local_theory
-
-  val function: (binding * typ option * mixfix) list ->
-    Specification.multi_specs -> Function_Common.function_config ->
-    local_theory -> Proof.state
-
-  val function_cmd: (binding * string option * mixfix) list ->
-    Specification.multi_specs_cmd -> Function_Common.function_config ->
-    bool -> local_theory -> Proof.state
-
-  val prove_termination: term option -> tactic -> local_theory ->
-    info * local_theory
-  val prove_termination_cmd: string option -> tactic -> local_theory ->
-    info * local_theory
-
-  val termination : term option -> local_theory -> Proof.state
-  val termination_cmd : string option -> local_theory -> Proof.state
-
-  val get_congs : Proof.context -> thm list
-
-  val get_info : Proof.context -> term -> info
-end
-
-
-structure Function : FUNCTION =
-struct
-
 open Function_Lib
 open Function_Common
 
-val simp_attribs =
-  @{attributes [simp, nitpick_simp]} @ [Code.add_default_eqn_attrib Code.Equation]
 
-val psimp_attribs =
-  @{attributes [nitpick_psimp]}
+val fun_config = FunctionConfig { sequential=true, default=NONE,
+  domintros=false, partials=false }
 
-fun note_derived (a, atts) (fname, thms) =
-  Local_Theory.note ((derived_name fname a, atts), thms) #> apfst snd
-
-fun add_simps fnames post sort extra_qualify label mod_binding moreatts simps lthy =
+fun add_fun_cmd_inline fixes specs config = fn int => fn lthy =>
   let
-    val spec = post simps
-      |> map (apfst (apsnd (fn ats => moreatts @ ats)))
-      |> map (apfst (apfst extra_qualify))
+    val _ = writeln ("fixes : >>>");
+    val _ = writeln (@{make_string} fixes);
+    val _ = writeln ("<<<");
+    val _ = writeln "";
 
-    val (saved_spec_simps, lthy) =
-      fold_map Local_Theory.note spec lthy
+    val _ = writeln ("specs : >>>");
+    val _ = writeln (@{make_string} specs);
+    val _ = writeln ("<<<");
+    val _ = writeln "";
 
-    val saved_simps = maps snd saved_spec_simps
-    val simps_by_f = sort saved_simps
+    val _ = writeln ("spec[0].1.2 : >>>");
+    val _ = writeln ( (nth specs 0 |> #1 |> #2));
+    val _ = writeln ("<<<");
+    val _ = writeln "";
 
-    fun note fname simps =
-      Local_Theory.note ((mod_binding (derived_name fname label), []), simps) #> snd
-  in (saved_simps, fold2 note fnames simps_by_f lthy) end
+    val _ = writeln ("spec[1].1.2 : >>>");
+    val _ = writeln ((nth specs 1 |> #1 |> #2));
+    val _ = writeln ("<<<");
+    val _ = writeln "";
 
-fun prepare_function do_print prep fixspec eqns config lthy =
-  let
-    val ((fixes0, spec0), ctxt') = prep fixspec eqns lthy
-    val fixes = map (apfst (apfst Binding.name_of)) fixes0
-    val spec = map (fn (bnd, prop) => (bnd, [prop])) spec0
-    val (eqs, post, sort_cont, cnames) = get_preproc lthy config ctxt' fixes spec
+    val _ = writeln ("lth: >>>");
+    val _ = writeln (@{make_string} lthy);
+    val _ = writeln ("<<<");
+    val _ = writeln ("");
 
-    val fnames = map (fst o fst) fixes0
-    val defname = Binding.conglomerate fnames;
-
-    val FunctionConfig {partials, default, ...} = config
-    val _ =
-      if is_some default
-      then legacy_feature "\"function (default)\" -- use 'partial_function' instead"
-      else ()
-
-    val ((goal_state, cont), lthy') =
-      Function_Mutual.prepare_function_mutual config defname fixes0 eqs lthy
-
-    fun afterqed [[proof]] lthy =
-      let
-        val result = cont lthy (Thm.close_derivation proof)
-        val FunctionResult {fs, R, dom, psimps, simple_pinducts,
-                termination, domintros, cases, ...} = result
-
-        val pelims = Function_Elims.mk_partial_elim_rules lthy result
-
-        val concealed_partial = if partials then I else Binding.concealed
-
-        val addsmps = add_simps fnames post sort_cont
-
-        val (((((psimps', [pinducts']), [termination']), cases'), pelims'), lthy) =
-          lthy
-          |> addsmps (concealed_partial o Binding.qualify false "partial")
-               "psimps" concealed_partial psimp_attribs psimps
-          ||>> Local_Theory.notes [((concealed_partial (derived_name defname "pinduct"), []),
-                simple_pinducts |> map (fn th => ([th],
-                 [Attrib.case_names cnames, Attrib.consumes (1 - Thm.nprems_of th)] @
-                 @{attributes [induct pred]})))]
-          ||>> (apfst snd o
-            Local_Theory.note
-              ((Binding.concealed (derived_name defname "termination"), []), [termination]))
-          ||>> fold_map (note_derived ("cases", [Attrib.case_names cnames]))
-            (fnames ~~ map single cases)
-          ||>> fold_map (note_derived ("pelims", [Attrib.consumes 1, Attrib.constraints 1]))
-            (fnames ~~ pelims)
-          ||> (case domintros of NONE => I | SOME thms =>
-                Local_Theory.note ((derived_name defname "domintros", []), thms) #> snd)
-
-        val info =
-          { add_simps=addsmps, fnames=fnames, case_names=cnames, psimps=psimps',
-          pinducts=snd pinducts', simps=NONE, inducts=NONE, termination=termination',
-          fs=fs, R=R, dom=dom, defname=defname, is_partial=true, cases=flat cases',
-          pelims=pelims',elims=NONE}
-
-        val _ =
-          Proof_Display.print_consts do_print (Position.thread_data ()) lthy
-            (K false) (map fst fixes)
-      in
-        (info,
-         lthy |> Local_Theory.declaration {syntax = false, pervasive = false}
-          (fn phi => add_function_data (transform_function_data phi info)))
-      end
-  in
-    ((goal_state, afterqed), lthy')
-  end
-
-fun gen_add_function do_print prep fixspec eqns config tac lthy =
-  let
-    val ((goal_state, afterqed), lthy') =
-      prepare_function do_print prep fixspec eqns config lthy
-    val pattern_thm =
-      case SINGLE (tac lthy') goal_state of
-        NONE => error "pattern completeness and compatibility proof failed"
-      | SOME st => Goal.finish lthy' st
-  in
-    lthy'
-    |> afterqed [[pattern_thm]]
-  end
-
-val add_function = gen_add_function false Specification.check_multi_specs
-fun add_function_cmd a b c d int = gen_add_function int Specification.read_multi_specs a b c d
-
-fun gen_function do_print prep fixspec eqns config lthy =
-  let
-    val ((goal_state, afterqed), lthy') =
-      prepare_function do_print prep fixspec eqns config lthy
-  in
-    lthy'
-    |> Proof.theorem NONE (snd oo afterqed) [[(Logic.unprotect (Thm.concl_of goal_state), [])]]
-    |> Proof.refine_singleton (Method.primitive_text (K (K goal_state)))
-  end
-
-val function = gen_function false Specification.check_multi_specs
-fun function_cmd a b c int = gen_function int Specification.read_multi_specs a b c
-
-fun prepare_termination_proof prep_term raw_term_opt lthy =
-  let
-    val term_opt = Option.map (prep_term lthy) raw_term_opt
-    val info =
-      (case term_opt of
-        SOME t =>
-          (case import_function_data t lthy of
-            SOME info => info
-          | NONE => error ("Not a function: " ^ quote (Syntax.string_of_term lthy t)))
-      | NONE =>
-          (case import_last_function lthy of
-            SOME info => info
-          | NONE => error "Not a function"))
-
-    val { termination, fs, R, add_simps, case_names, psimps,
-      pinducts, defname, fnames, cases, dom, pelims, ...} = info
-    val domT = domain_type (fastype_of R)
-    val goal = HOLogic.mk_Trueprop (HOLogic.mk_all ("x", domT, mk_acc domT R $ Free ("x", domT)))
-    fun afterqed [[totality]] lthy =
-      let
-        val totality = Thm.close_derivation totality
-        val remove_domain_condition =
-          full_simplify (put_simpset HOL_basic_ss lthy
-            addsimps [totality, @{thm True_implies_equals}])
-        val tsimps = map remove_domain_condition psimps
-        val tinduct = map remove_domain_condition pinducts
-        val telims = map (map remove_domain_condition) pelims
-      in
-        lthy
-        |> add_simps I "simps" I simp_attribs tsimps
-        ||>> Local_Theory.note
-          ((derived_name defname "induct", [Attrib.case_names case_names]), tinduct)
-        ||>> fold_map (note_derived ("elims", [Attrib.consumes 1, Attrib.constraints 1]))
-          (fnames ~~ telims)
-        |-> (fn ((simps,(_,inducts)), elims) => fn lthy =>
-          let val info' = { is_partial=false, defname=defname, fnames=fnames, add_simps=add_simps,
-            case_names=case_names, fs=fs, R=R, dom=dom, psimps=psimps, pinducts=pinducts,
-            simps=SOME simps, inducts=SOME inducts, termination=termination, cases=cases, pelims=pelims, elims=SOME elims}
-          in
-            (info',
-             lthy
-             |> Local_Theory.declaration {syntax = false, pervasive = false}
-               (fn phi => add_function_data (transform_function_data phi info'))
-             |> Spec_Rules.add Spec_Rules.Equational (fs, tsimps))
-          end)
-      end
-  in
-    (goal, afterqed, termination)
-  end
-
-fun gen_prove_termination prep_term raw_term_opt tac lthy =
-  let
-    val (goal, afterqed, termination) =
-      prepare_termination_proof prep_term raw_term_opt lthy
-
-    val totality = Goal.prove lthy [] [] goal (K tac)
-  in
-    afterqed [[totality]] lthy
-end
-
-val prove_termination = gen_prove_termination Syntax.check_term
-val prove_termination_cmd = gen_prove_termination Syntax.read_term
-
-fun gen_termination prep_term raw_term_opt lthy =
-  let
-    val (goal, afterqed, termination) = prepare_termination_proof prep_term raw_term_opt lthy
+    fun pat_completeness_auto ctxt =
+      Pat_Completeness.pat_completeness_tac ctxt 1
+      THEN auto_tac ctxt
+    fun prove_termination lthy =
+      Function.prove_termination NONE (Function_Common.termination_prover_tac false lthy) lthy
   in
     lthy
-    |> Proof_Context.note_thmss ""
-       [((Binding.empty, [Context_Rules.rule_del]), [([allI], [])])] |> snd
-    |> Proof_Context.note_thmss ""
-       [((Binding.empty, [Context_Rules.intro_bang (SOME 1)]), [([allI], [])])] |> snd
-    |> Proof_Context.note_thmss ""
-       [((Binding.name "termination", [Context_Rules.intro_bang (SOME 0)]),
-         [([Goal.norm_result lthy termination], [])])] |> snd
-    |> Proof.theorem NONE (snd oo afterqed) [[(goal, [])]]
-  end
-
-val termination = gen_termination Syntax.check_term
-val termination_cmd = gen_termination Syntax.read_term
-
-
-(* Datatype hook to declare datatype congs as "function_congs" *)
-
-fun add_case_cong n thy =
-  let
-    val cong = #case_cong (Old_Datatype_Data.the_info thy n)
-      |> safe_mk_meta_eq
-  in
-    Context.theory_map (Function_Context_Tree.add_function_cong cong) thy
-  end
-
-val _ = Theory.setup (Old_Datatype_Data.interpretation (K (fold add_case_cong)))
-
-
-(* get info *)
-
-val get_congs = Function_Context_Tree.get_function_congs
-
-fun get_info ctxt t = Item_Net.retrieve (get_functions ctxt) t
-  |> the_single |> snd
-
-
-(* outer syntax *)
-(*
-val _ =
-  Outer_Syntax.local_theory_to_proof' @{command_keyword function}
-    "define general recursive functions"
-    (function_parser default_config
-      >> (fn (config, (fixes, specs)) => function_cmd fixes specs config))
+    |>  Function.add_function_cmd fixes specs config pat_completeness_auto int  |> snd
+    |> prove_termination |> snd
+  end;
 
 val _ =
-  Outer_Syntax.local_theory_to_proof @{command_keyword termination}
-    "prove termination of a recursive function"
-    (Scan.option Parse.term >> termination_cmd)
-*)
-end
+  Outer_Syntax.local_theory' @{command_keyword gun}
+    "define general recursive functions (short version)"
+    (function_parser fun_config
+      >> (fn (config, (fixes, specs)) => add_fun_cmd_inline fixes specs config));
 \<close>
-
-
-SML_file "test.sml"
-
-definition "d == 3"
-
-definition "g (x::nat) == x + x*3"
-
-ML \<open>                
-fun tt ctx = resolve_tac ctx [@{thm exI}] 1
-val x = Toplevel.proofs;
-\<close>
-lemma "\<exists>x. g x = x"
-(*  apply (tactic \<open>tt @{context}\<close>)*)
   
-  oops
+  
+gun f :: "nat \<Rightarrow> nat" where
+  "f 0 = 0" |
+  "f (Suc x) = f x + x"
 
-declare [[ML_source_trace]]
-ML \<open>@{term "g"}\<close>
-ML \<open>@{term "g (Suc a)"}\<close>
-    
-end
+ML \<open>
+Function.add_function [(@{binding f}, SOME @{typ "nat => nat"}, NoSyn)];
+val x: binding = @{binding f};
+val x: typ = @{typ "nat \<Rightarrow> nat"};
+type x = Specification.multi_specs;
+type x' = ((Attrib.binding * term) * term list * (binding * typ option * mixfix) list) list;
+type x = Specification.multi_specs_cmd;
+type x' = ((Attrib.binding * string) * string list * (binding * string option * mixfix) list) list;
+type x = Attrib.binding;
+type x' = binding * Token.src list;
+val x = Specification.read_multi_specs;
+val x: function_config = FunctionConfig { sequential=true, default=NONE, domintros=false, partials=false };
+open Function_Fun;
+\<close>
+
+ML_val \<open>
+@{term "(Suc 0) + (Suc (Suc 0))"};
+@{term Nil};
+Specification.check_multi_specs;
+Specification.check_multi_specs;
+Parse_Spec.specification;
+Parse.vars -- Parse_Spec.where_multi_specs;
+Parse.vars;
+Parse_Spec.where_multi_specs;
+Parse.where_ |-- Parse.!!! Parse_Spec.multi_specs;
+Parse_Spec.multi_specs;
+  Parse.enum1 "|"
+    ((Parse_Spec.opt_thm_name ":" -- Parse.prop -- Parse_Spec.if_assumes -- Parse.for_fixes >> Scan.triple1) --|
+      Scan.option (Scan.ahead (Parse.name || Parse.$$$ "[") -- Parse.!!! (Parse.$$$ "|")));
+\<close>
+ML_val \<open>
+Function_Common.split_def @{context} I;
+val geq = @{term "\<And>x. f x = x"};
+val qs = Term.strip_qnt_vars @{const_name Pure.all} geq;
+val imp = Term.strip_qnt_body @{const_name Pure.all} geq;
+val (gs, eq) = Logic.strip_horn imp;
+Function_Common.split_def @{context} I eq;
+type x = int Token.parser;
+\<close>
+term "HOL.Trueprop"
+term "HOL.Trueprop x"
+ML_val \<open>
+Parse_Spec.where_multi_specs;
+
+val multi_specs = Parse.enum1 "|"
+    ((Parse_Spec.opt_thm_name ":" -- Parse.prop -- Parse_Spec.if_assumes -- Parse.for_fixes >> Scan.triple1) --|
+      Scan.option (Scan.ahead (Parse.name || Parse.$$$ "[") -- Parse.!!! (Parse.$$$ "|")));
+
+val where_multi_specs = Parse.where_ |-- Parse.!!! multi_specs;
+
+val specification = Parse.vars -- where_multi_specs;
+val vars = Parse.vars;
+\<close>
+
+ML_val \<open>
+val tmp00 = Parse_Spec.opt_thm_name ":";
+val tmp01 = tmp00 -- Parse.prop;
+val tmp02 = tmp01 -- Parse_Spec.if_assumes;
+val tmp03 = tmp02 -- Parse.for_fixes;
+val tmp0' = tmp03;
+val tmp0 = tmp0'  >> Scan.triple1;
+val tmp1 = Scan.option (Scan.ahead (Parse.name || Parse.$$$ "[") -- Parse.!!! (Parse.$$$ "|"));
+val tmp = tmp0 --| tmp1;
+val multi_specs = Parse.enum1 "|" tmp;
+val where_multi_specs = Parse.where_ |-- Parse.!!! multi_specs;
+val specification = Parse.vars -- where_multi_specs;
+\<close>
+  
+ML_val \<open>
+Binding.empty_atts;
+\<close>
+  
+ML \<open>
+fun prove_termination lthy =
+  Function.prove_termination NONE (Function_Common.termination_prover_tac false lthy) lthy;
+
+type x = Specification.multi_specs_cmd;
+type x' = ( ( Attrib.binding (* fold_Nil / fold_Cons *)
+            * string         (* fold [] = ... *)
+            )
+          * string list      (* if_assumes? *)
+          * (binding * string option * mixfix) list (* for fixes? *)
+          ) list;
+
+type x = Specification.multi_specs;
+type multi_spec = ( ( Attrib.binding
+            * term
+            )
+          * term list
+          * (binding * typ option * mixfix) list
+          );
+type multi_specs = multi_spec list;
+
+val binding_sometyp_mixfix = (@{binding ff}, SOME @{typ "nat => nat"}, NoSyn);
+val binding_sometyp_mixfix_cmd = (Binding.concealed (Binding.name "ff"), SOME "nat => nat", NoSyn);
+
+val spec0: multi_spec = ( ( (Binding.concealed Binding.empty, [])
+                          , @{prop "ff (0::nat) = (0::nat)"}
+                          )
+                        , []
+                        , []
+                        );
+val spec_cmd0 = ( ( Binding.empty_atts
+                 , "ff 0 = 0"
+                 )
+               , []
+               , []
+               );
+
+ Function_Fun.add_fun [binding_sometyp_mixfix] [spec0] Function_Common.default_config; 
+\<close>
+datatype foo = Foo nat
+
+local_setup{*
+Function.add_function [(@{binding "baz"}, NONE, NoSyn)] [(Attrib.empty_binding, @{term "\<And>x. baz (Foo x) = x"})]
+conf pat_completeness_auto #> snd*}
+ML_val \<open>
+open Pretty;
+type x = Pretty.T
+\<close>
+ML {*
+val x: string = (@{make_string} [3,4]);
+val _ = writeln (@{make_string} @{term "[]"});
+writeln (@{make_string} I);
+*}
+end   

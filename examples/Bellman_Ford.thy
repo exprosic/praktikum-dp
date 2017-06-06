@@ -24,5 +24,3 @@ lemma "consistentDF bf bf'"
   by (dp_match induct: bf.induct simp: bf.simps bf'.simps)
 
 end
-
-end

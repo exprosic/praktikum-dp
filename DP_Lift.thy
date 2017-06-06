@@ -49,4 +49,8 @@ abbreviation "max\<^sub>s \<equiv> lift_binary max"
 abbreviation "min\<^sub>s \<equiv> lift_binary min"
 abbreviation plus_state (infixl "+\<^sub>s" 65) where "op +\<^sub>s \<equiv> lift_binary (op +)"
 
+definition case_option\<^sub>s :: "('M, 'b) state \<Rightarrow> ('a \<Rightarrow> ('M, 'b) state) \<Rightarrow> ('M, 'a option) state \<Rightarrow> ('M, 'b) state" where
+  "case_option\<^sub>s ifNone ifSome s \<equiv> s \<circ>\<rightarrow> case_option ifNone ifSome"
+
+
 end

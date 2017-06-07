@@ -73,181 +73,129 @@ thm ed.simps ed'.simps
 
 lemma "consistentDF ed ed'"
   apply (rule consistentDF_I)
-  apply (induct_tac rule: ed'.induct)
+  apply (induct_tac rule: ed'.induct; unfold ed'.simps, rule consistentS_checkmem', unfold ed.simps)
   subgoal
-    apply (unfold ed'.simps)
-    apply (rule consistentS_checkmem)
+    apply (rule consistentS_return)
+    subgoal by (rule HOL.refl)
+    done
+  subgoal
+    apply (rule consistentS_case_option')
     subgoal
-      apply (unfold ed.simps)
       apply (rule consistentS_return)
-      subgoal
-        by (rule HOL.refl)
+      subgoal by (rule HOL.refl)
       done
     subgoal
-      by (rule HOL.refl)
-    done
-  subgoal
-    apply (unfold ed'.simps)
-    apply (rule consistentS_checkmem)
-    subgoal
-      apply (unfold ed.simps)
       apply (rule consistentS_case_option')
       subgoal
         apply (rule consistentS_return)
-        subgoal
-          by (rule HOL.refl)
+        subgoal by (rule HOL.refl)
         done
       subgoal
-        apply (rule consistentS_case_option')
+        apply (rule consistentS_lift_fun_app)
         subgoal
           apply (rule consistentS_return)
-          subgoal
-            by (rule HOL.refl)
+          subgoal by (rule HOL.refl)
           done
-        subgoal
-          apply (rule consistentS_lift_fun_app)
-          subgoal
-            apply (rule consistentS_return)
-            subgoal
-              by (rule HOL.refl)
-            done
-          subgoal
-            apply (rule consistentS_binary)
-            subgoal
-              apply (rule consistentS_return)
-              subgoal
-                by (assumption)
-              done
-            subgoal
-              apply (rule consistentS_return)
-              subgoal
-                by (assumption)
-              done
-            done
-          done
-        subgoal
-          apply (rule consistentS_return)
-          subgoal
-            by (rule HOL.refl)
-          done
-        done
-      subgoal
-        by (assumption)
-      done
-    subgoal
-      by (rule HOL.refl)
-    done
-  subgoal
-    apply (unfold ed'.simps)
-    apply (rule consistentS_checkmem)
-    subgoal
-      apply (unfold ed.simps)
-      apply (rule consistentS_case_option')
-      subgoal
-        apply (rule consistentS_return)
-        subgoal
-          by (rule HOL.refl)
-        done
-      subgoal
-        apply (rule consistentS_case_option')
-        subgoal
-          apply (rule consistentS_return)
-          subgoal
-            by (rule HOL.refl)
-          done
-        subgoal
-          apply (rule consistentS_lift_fun_app)
-          subgoal
-            apply (rule consistentS_return)
-            subgoal
-              by (rule HOL.refl)
-            done
-          subgoal
-            apply (rule consistentS_binary)
-            subgoal
-              apply (rule consistentS_return)
-              subgoal
-                by (assumption)
-              done
-            subgoal
-              apply (rule consistentS_return)
-              subgoal
-                by (assumption)
-              done
-            done
-          done
-        subgoal
-          apply (rule consistentS_return)
-          subgoal
-            by (rule HOL.refl)
-          done
-        done
-      subgoal
-        by (assumption)
-      done
-    subgoal
-      by (rule HOL.refl)
-    done
-  subgoal
-    apply (unfold ed'.simps)
-    apply (rule consistentS_checkmem)
-    subgoal
-      apply (unfold ed.simps)
-      apply (rule consistentS_case_option')
-      subgoal
-        apply (rule consistentS_return)
-        subgoal
-          by (rule HOL.refl)
-        done
-      subgoal
-        apply (rule consistentS_case_option')
-        subgoal
-          apply (rule consistentS_return)
-          subgoal
-            by (rule HOL.refl)
-          done
-        subgoal
-          apply (rule consistentS_lift_fun_app)
-          subgoal
-            apply (rule consistentS_return)
-            subgoal
-              by (rule HOL.refl)
-            done
-          subgoal
-            apply (rule consistentS_binary)
-            subgoal
-              apply (rule consistentS_return)
-              subgoal
-                by (assumption)
-              done
-            subgoal
-              apply (rule consistentS_return)
-              subgoal
-                by (assumption)
-              done
-            done
-          done
-        subgoal
-          apply (rule consistentS_return)
-          subgoal
-            by (rule HOL.refl)
-          done
-        done
-      subgoal
-        apply (rule consistentS_binary)
-        subgoal
-          by (assumption)
         subgoal
           apply (rule consistentS_binary)
           subgoal
-            by (assumption)
+            apply (rule consistentS_return)
+            subgoal by (assumption)
+            done
           subgoal
-            by (assumption)
+            apply (rule consistentS_return)
+            subgoal by (assumption)
+            done
           done
+        done
+      subgoal
+        apply (rule consistentS_return)
+        subgoal by (rule HOL.refl)
+        done
+      done
+    subgoal by (assumption)
+    done
+  subgoal
+    apply (rule consistentS_case_option')
+    subgoal
+      apply (rule consistentS_return)
+      subgoal by (rule HOL.refl)
+      done
+    subgoal
+      apply (rule consistentS_case_option')
+      subgoal
+        apply (rule consistentS_return)
+        subgoal by (rule HOL.refl)
+        done
+      subgoal
+        apply (rule consistentS_lift_fun_app)
+        subgoal
+          apply (rule consistentS_return)
+          subgoal by (rule HOL.refl)
+          done
+        subgoal
+          apply (rule consistentS_binary)
+          subgoal
+            apply (rule consistentS_return)
+            subgoal by (assumption)
+            done
+          subgoal
+            apply (rule consistentS_return)
+            subgoal by (assumption)
+            done
+          done
+        done
+      subgoal
+        apply (rule consistentS_return)
+        subgoal by (rule HOL.refl)
+        done
+      done
+    subgoal by (assumption)
+    done
+  subgoal
+    apply (rule consistentS_case_option')
+    subgoal
+      apply (rule consistentS_return)
+      subgoal by (rule HOL.refl)
+      done
+    subgoal
+      apply (rule consistentS_case_option')
+      subgoal
+        apply (rule consistentS_return)
+        subgoal by (rule HOL.refl)
+        done
+      subgoal
+        apply (rule consistentS_lift_fun_app)
+        subgoal
+          apply (rule consistentS_return)
+          subgoal by (rule HOL.refl)
+          done
+        subgoal
+          apply (rule consistentS_binary)
+          subgoal
+            apply (rule consistentS_return)
+            subgoal by (assumption)
+            done
+          subgoal
+            apply (rule consistentS_return)
+            subgoal by (assumption)
+            done
+          done
+        done
+      subgoal
+        apply (rule consistentS_return)
+        subgoal by (rule HOL.refl)
         done
       done
     subgoal
-      by (rule HOL.refl)
+      apply (rule consistentS_binary)
+      subgoal by (assumption)
+      subgoal
+        apply (rule consistentS_binary)
+        subgoal by (assumption)
+        subgoal by (assumption)
+        done
+      done
     done
   done
 

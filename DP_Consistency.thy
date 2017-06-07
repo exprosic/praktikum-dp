@@ -92,12 +92,12 @@ lemma consistent_fold':
     apply assumption
   by (induction idx) auto
 
-lemma consistent_cond:
-  assumes "consistentS dp b sb" "b \<Longrightarrow> consistentS dp v0 s0" "\<not>b \<Longrightarrow> consistentS dp v1 s1"
+lemma consistentS_cond:
+  assumes "consistentS dp b sb" " consistentS dp v0 s0" " consistentS dp v1 s1"
   shows "consistentS dp (if b then v0 else v1) (if\<^sub>s sb then\<^sub>s s0 else\<^sub>s s1)"
   using assms unfolding If\<^sub>s_def by (auto intro: consistentS_app)
 
-lemma consistent_cond':
+lemma consistentS_cond':
   assumes "b \<Longrightarrow> consistentS dp v0 s0" "\<not>b \<Longrightarrow> consistentS dp v1 s1"
   shows "consistentS dp (if b then v0 else v1) (if b then s0 else s1)"
   using assms by (auto)
@@ -173,10 +173,46 @@ text \<open>
   Conclusion: the default parametricity rules for \<open>map\<close> and \<open>if _ then _ else\<close> are too weak.
   Fold works out of the box.
 \<close>
+(*
+lemma
+  assumes "consistentS dp v sv" "consistentS dp ifNone sIfNone" "\<And>x. v = Some x \<Longrightarrow> consistentS dp (ifSome x) (sIfSome x)"
+  shows "consistentS dp (case_option ifNone ifSome v) (case_option\<^sub>s sIfNone sIfSome sv)"
+  supply [transfer_rule] = assms
+  apply transfer_prover_start
+      apply transfer_step
+     prefer 2
+     apply transfer_step
+    prefer 3
+*)
+lemma consistentS_app_transfer:
+  "(consistentS dp ===> (op = ===> consistentS dp) ===> consistentS dp) (\<lambda>v f. f v) op \<circ>\<rightarrow>"
+  unfolding rel_fun_def by (auto intro: consistentS_app)
 
+lemma consistentS_case_option_transfer:
+  "(consistentS dp ===> (op = ===> consistentS dp) ===> consistentS dp ===> consistentS dp) case_option case_option\<^sub>s"
+  unfolding case_option\<^sub>s_def
+  supply [transfer_rule] = consistentS_app_transfer
+  by transfer_prover
+ 
 end (* End of lifting syntax *)
 
+lemma consistentS_case_option:
+  assumes "v = None \<Longrightarrow> consistentS dp ifNone sIfNone" "\<And>x. v = Some x \<Longrightarrow> consistentS dp (ifSome x) (sIfSome x)" "consistentS dp v sv"
+  shows "consistentS dp (case_option ifNone ifSome v) (case_option\<^sub>s sIfNone sIfSome sv)"
+  unfolding case_option\<^sub>s_def using assms by (fastforce intro: consistentS_app split: option.splits)
+
+lemmas consistentS_case_option' = consistentS_case_option_transfer[unfolded rel_fun_def, rule_format]
+
 lemmas consistency_rules =
-  consistent_cond consistent_fold' consistentS_checkmem consistentS_return consistentS_binary
+  consistentS_cond consistent_fold' consistentS_checkmem consistentS_return consistentS_binary
+thm consistentS_case_option_transfer[unfolded rel_fun_def, rule_format]
+lemma consistentS_checkmem':
+  assumes "consistentS f (f param) s"
+  shows "consistentS f (f param) (checkmem param s)"
+  using assms by (fastforce intro: consistentS_basic_intros consistentM_upd dest: consistentM_D split: option.splits)
+
+lemma consistentS_return':
+  "consistentS dp v \<langle>v\<rangle>"
+  unfolding return_def by (fastforce intro: consistentS_I)
 
 end

@@ -19,7 +19,33 @@ fun su' :: "nat\<times>nat \<Rightarrow>\<^sub>s nat" where
     else\<^sub>s max\<^sub>s (su' (i, W)) (\<langle>w i\<rangle> +\<^sub>s su' (i, W - w i)))"
   
 lemma "consistentDF su su'"
-  by (dp_match induct: su.induct simp: su.simps su'.simps)
+  apply (rule consistentDF_I)
+  apply (induct_tac rule: su'.induct)
+  apply (simp only: su.simps su'.simps)
+   apply (rule consistentS_checkmem)
+    apply (rule consistentS_cond)
+      apply (rule consistentS_return HOL.refl)+
+   apply (simp only: su.simps su'.simps)
+  apply (simp only: su.simps su'.simps)
+  apply (rule consistentS_checkmem)
+   apply (rule consistentS_cond)
+     apply (rule consistentS_return HOL.refl | assumption)+
+   apply (rule consistentS_binary)
+    apply (rule consistentS_return HOL.refl | assumption)+
+   apply (rule consistentS_binary)
+    apply (rule consistentS_return)
+    apply (rule consistentS_return HOL.refl | assumption)+
+  apply (simp only: su.simps su'.simps)
+  done
+    
+    
+thm su.induct su'.induct
+fun f :: "nat \<Rightarrow> nat" where
+  "f 0 = 0" |
+  "f (Suc x) = (let b=1 in (if 3<x then f x else b + x))"
+thm f.induct
+  term None
+ (* by (dp_match induct: su.induct simp: su.simps su'.simps)*)
 
 end
 

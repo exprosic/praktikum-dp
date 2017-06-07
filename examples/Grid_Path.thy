@@ -46,29 +46,210 @@ fun ed :: "nat\<times>nat \<Rightarrow> nat option" where
                            Some (prev + here)
                          ) (W (Suc i, Suc j))
                        ) (min_opt (ed (i, j)) (min_opt (ed (Suc i, j)) (ed (i, Suc j))))"
+(*
+If replace "\<langle>Some\<rangle> . (\<langle>prev\<rangle> +\<^sub>s \<langle>here\<rangle>)" with "\<langle>Some (prev + here)\<rangle>", there would be subgoals like
+"a=x \<Longrightarrow> b=y \<Longrightarrow> Some (a+b) = Some (x+y)", which requires some ad-hoc rule.
+*)
 
 fun ed'  :: "nat\<times>nat \<Rightarrow>\<^sub>s nat option" where
   "ed'$ (0, 0) =CHECKMEM= \<langle>W (0, 0)\<rangle>"
 | "ed'$ (0, Suc j) =CHECKMEM= case_option\<^sub>s \<langle>None\<rangle> (\<lambda>prev.
                      case_option\<^sub>s \<langle>None\<rangle> (\<lambda>here.
-                       \<langle>Some (prev + here)\<rangle>
+                       \<langle>Some\<rangle> . (\<langle>prev\<rangle> +\<^sub>s \<langle>here\<rangle>)
                      ) \<langle>W (0, Suc j)\<rangle>
                    ) (ed' (0, j))"
 | "ed'$ (Suc i, 0) =CHECKMEM= case_option\<^sub>s \<langle>None\<rangle> (\<lambda>prev.
                      case_option\<^sub>s \<langle>None\<rangle> (\<lambda>here.
-                       \<langle>Some (prev + here)\<rangle>
+                       \<langle>Some\<rangle> . (\<langle>prev\<rangle> +\<^sub>s \<langle>here\<rangle>)
                      ) \<langle>W (Suc i, 0)\<rangle>
                    ) (ed' (i, 0))"
 | "ed'$ (Suc i, Suc j) =CHECKMEM= case_option\<^sub>s \<langle>None\<rangle> (\<lambda>prev.
                          case_option\<^sub>s \<langle>None\<rangle> (\<lambda>here.
-                           \<langle>Some (prev + here)\<rangle>
+                           \<langle>Some\<rangle> . (\<langle>prev\<rangle> +\<^sub>s \<langle>here\<rangle>)
                          ) \<langle>W (Suc i, Suc j)\<rangle>
                        ) (min_opt\<^sub>s (ed' (i, j)) (min_opt\<^sub>s (ed' (Suc i, j)) (ed' (i, Suc j))))"
   
 thm ed.simps ed'.simps
 
 lemma "consistentDF ed ed'"
-  oops (*by (dp_match induct: ed.induct simp: ed.simps ed'.simps)*)
+  apply (rule consistentDF_I)
+  apply (induct_tac rule: ed'.induct)
+  subgoal
+    apply (unfold ed'.simps)
+    apply (rule consistentS_checkmem)
+    subgoal
+      apply (unfold ed.simps)
+      apply (rule consistentS_return)
+      subgoal
+        by (rule HOL.refl)
+      done
+    subgoal
+      by (rule HOL.refl)
+    done
+  subgoal
+    apply (unfold ed'.simps)
+    apply (rule consistentS_checkmem)
+    subgoal
+      apply (unfold ed.simps)
+      apply (rule consistentS_case_option')
+      subgoal
+        apply (rule consistentS_return)
+        subgoal
+          by (rule HOL.refl)
+        done
+      subgoal
+        apply (rule consistentS_case_option')
+        subgoal
+          apply (rule consistentS_return)
+          subgoal
+            by (rule HOL.refl)
+          done
+        subgoal
+          apply (rule consistentS_lift_fun_app)
+          subgoal
+            apply (rule consistentS_return)
+            subgoal
+              by (rule HOL.refl)
+            done
+          subgoal
+            apply (rule consistentS_binary)
+            subgoal
+              apply (rule consistentS_return)
+              subgoal
+                by (assumption)
+              done
+            subgoal
+              apply (rule consistentS_return)
+              subgoal
+                by (assumption)
+              done
+            done
+          done
+        subgoal
+          apply (rule consistentS_return)
+          subgoal
+            by (rule HOL.refl)
+          done
+        done
+      subgoal
+        by (assumption)
+      done
+    subgoal
+      by (rule HOL.refl)
+    done
+  subgoal
+    apply (unfold ed'.simps)
+    apply (rule consistentS_checkmem)
+    subgoal
+      apply (unfold ed.simps)
+      apply (rule consistentS_case_option')
+      subgoal
+        apply (rule consistentS_return)
+        subgoal
+          by (rule HOL.refl)
+        done
+      subgoal
+        apply (rule consistentS_case_option')
+        subgoal
+          apply (rule consistentS_return)
+          subgoal
+            by (rule HOL.refl)
+          done
+        subgoal
+          apply (rule consistentS_lift_fun_app)
+          subgoal
+            apply (rule consistentS_return)
+            subgoal
+              by (rule HOL.refl)
+            done
+          subgoal
+            apply (rule consistentS_binary)
+            subgoal
+              apply (rule consistentS_return)
+              subgoal
+                by (assumption)
+              done
+            subgoal
+              apply (rule consistentS_return)
+              subgoal
+                by (assumption)
+              done
+            done
+          done
+        subgoal
+          apply (rule consistentS_return)
+          subgoal
+            by (rule HOL.refl)
+          done
+        done
+      subgoal
+        by (assumption)
+      done
+    subgoal
+      by (rule HOL.refl)
+    done
+  subgoal
+    apply (unfold ed'.simps)
+    apply (rule consistentS_checkmem)
+    subgoal
+      apply (unfold ed.simps)
+      apply (rule consistentS_case_option')
+      subgoal
+        apply (rule consistentS_return)
+        subgoal
+          by (rule HOL.refl)
+        done
+      subgoal
+        apply (rule consistentS_case_option')
+        subgoal
+          apply (rule consistentS_return)
+          subgoal
+            by (rule HOL.refl)
+          done
+        subgoal
+          apply (rule consistentS_lift_fun_app)
+          subgoal
+            apply (rule consistentS_return)
+            subgoal
+              by (rule HOL.refl)
+            done
+          subgoal
+            apply (rule consistentS_binary)
+            subgoal
+              apply (rule consistentS_return)
+              subgoal
+                by (assumption)
+              done
+            subgoal
+              apply (rule consistentS_return)
+              subgoal
+                by (assumption)
+              done
+            done
+          done
+        subgoal
+          apply (rule consistentS_return)
+          subgoal
+            by (rule HOL.refl)
+          done
+        done
+      subgoal
+        apply (rule consistentS_binary)
+        subgoal
+          by (assumption)
+        subgoal
+          apply (rule consistentS_binary)
+          subgoal
+            by (assumption)
+          subgoal
+            by (assumption)
+          done
+        done
+      done
+    subgoal
+      by (rule HOL.refl)
+    done
+  done
 
 end
 

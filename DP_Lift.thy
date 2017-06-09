@@ -52,5 +52,6 @@ abbreviation plus_state (infixl "+\<^sub>s" 65) where "op +\<^sub>s \<equiv> lif
 definition case_option\<^sub>s :: "('M, 'b) state \<Rightarrow> ('a \<Rightarrow> ('M, 'b) state) \<Rightarrow> ('M, 'a option) state \<Rightarrow> ('M, 'b) state" where
   "case_option\<^sub>s ifNone ifSome s \<equiv> s \<circ>\<rightarrow> case_option ifNone ifSome"
 
-
+definition case_list\<^sub>s :: "('M, 'b) state \<Rightarrow> ('a \<Rightarrow> 'a list \<Rightarrow> ('M, 'b) state) \<Rightarrow> ('M, 'a list) state \<Rightarrow> ('M, 'b) state" where
+  "case_list\<^sub>s ifNil ifCons s \<equiv> s \<circ>\<rightarrow> case_list ifNil ifCons"
 end

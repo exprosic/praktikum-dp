@@ -79,13 +79,13 @@ lemma "consistentDF ed ed'"
     subgoal by (rule HOL.refl)
     done
   subgoal
-    apply (rule consistentS_case_option')
+    apply (rule consistentS_case_option)
     subgoal
       apply (rule consistentS_return)
       subgoal by (rule HOL.refl)
       done
     subgoal
-      apply (rule consistentS_case_option')
+      apply (rule consistentS_case_option)
       subgoal
         apply (rule consistentS_return)
         subgoal by (rule HOL.refl)
@@ -116,13 +116,13 @@ lemma "consistentDF ed ed'"
     subgoal by (assumption)
     done
   subgoal
-    apply (rule consistentS_case_option')
+    apply (rule consistentS_case_option)
     subgoal
       apply (rule consistentS_return)
       subgoal by (rule HOL.refl)
       done
     subgoal
-      apply (rule consistentS_case_option')
+      apply (rule consistentS_case_option)
       subgoal
         apply (rule consistentS_return)
         subgoal by (rule HOL.refl)
@@ -153,13 +153,13 @@ lemma "consistentDF ed ed'"
     subgoal by (assumption)
     done
   subgoal
-    apply (rule consistentS_case_option')
+    apply (rule consistentS_case_option)
     subgoal
       apply (rule consistentS_return)
       subgoal by (rule HOL.refl)
       done
     subgoal
-      apply (rule consistentS_case_option')
+      apply (rule consistentS_case_option)
       subgoal
         apply (rule consistentS_return)
         subgoal by (rule HOL.refl)
